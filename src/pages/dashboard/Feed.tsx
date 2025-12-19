@@ -59,8 +59,8 @@ export default function Feed() {
   const { toast } = useToast();
   const { user, profile, hasElevatedRole, role } = useAuth();
   
-  // Embesa users should not be able to add posts
-  const canAddPost = hasElevatedRole && role !== 'embesa';
+  // All members can post internally (except embesa and banned users)
+  const canAddPost = user && role !== 'embesa' && profile?.status !== 'banned';
   const [newPost, setNewPost] = useState('');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
