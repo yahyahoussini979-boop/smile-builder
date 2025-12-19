@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Mail, Edit } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Search, Edit, Users, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -50,6 +51,11 @@ export default function Members() {
   const [editCommittee, setEditCommittee] = useState<string>('');
   const [editRole, setEditRole] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkCommittee, setBulkCommittee] = useState<string>('');
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
 
   const canEdit = userRole === 'bureau' || userRole === 'admin';
 
@@ -112,6 +118,65 @@ export default function Members() {
     setEditCommittee(member.committee || '');
     setEditRole(member.role || 'member');
     setEditDialogOpen(true);
+  };
+
+  // Bulk selection handlers
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === filteredMembers.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredMembers.map((m) => m.id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setBulkCommittee('');
+  };
+
+  const handleBulkAssign = async () => {
+    if (selectedIds.size === 0 || !bulkCommittee) return;
+
+    setIsBulkSaving(true);
+    try {
+      const committeeValue = bulkCommittee === 'none' ? null : bulkCommittee as 'Sponsoring' | 'Communication' | 'Event' | 'Technique' | 'Media' | 'Bureau';
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ committee: committeeValue })
+        .in('id', Array.from(selectedIds));
+
+      if (error) throw error;
+
+      toast({
+        title: 'Mis à jour!',
+        description: `${selectedIds.size} membre(s) assigné(s) au comité.`,
+      });
+
+      clearSelection();
+      fetchMembers();
+    } catch (error) {
+      console.error('Error bulk updating:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de mettre à jour les membres',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBulkSaving(false);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -192,8 +257,51 @@ export default function Members() {
         <p className="text-muted-foreground">Annuaire des membres du club</p>
       </div>
 
+      {/* Bulk Action Bar */}
+      {canEdit && selectedIds.size > 0 && (
+        <div className="flex items-center gap-4 p-4 bg-primary/10 rounded-lg border border-primary/20">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            <span className="font-medium">{selectedIds.size} sélectionné(s)</span>
+          </div>
+          <Select value={bulkCommittee} onValueChange={setBulkCommittee}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Assigner au comité" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Aucun</SelectItem>
+              {committeeOptions.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button 
+            onClick={handleBulkAssign} 
+            disabled={!bulkCommittee || isBulkSaving}
+            size="sm"
+          >
+            {isBulkSaving ? 'Enregistrement...' : 'Appliquer'}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={clearSelection}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={filteredMembers.length > 0 && selectedIds.size === filteredMembers.length}
+              onCheckedChange={selectAll}
+              id="select-all"
+            />
+            <Label htmlFor="select-all" className="text-sm cursor-pointer">
+              Tout sélectionner
+            </Label>
+          </div>
+        )}
         <div className="relative flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -228,9 +336,19 @@ export default function Members() {
       {/* Members Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredMembers.map((member) => (
-          <Card key={member.id} className={member.status === 'embesa' ? 'opacity-75' : ''}>
+          <Card 
+            key={member.id} 
+            className={`${member.status === 'embesa' ? 'opacity-75' : ''} ${selectedIds.has(member.id) ? 'ring-2 ring-primary' : ''}`}
+          >
             <CardHeader className="pb-3">
               <div className="flex items-start gap-3">
+                {canEdit && (
+                  <Checkbox
+                    checked={selectedIds.has(member.id)}
+                    onCheckedChange={() => toggleSelect(member.id)}
+                    className="mt-1"
+                  />
+                )}
                 <Avatar className="h-12 w-12">
                   <AvatarImage src={member.avatar_url || undefined} />
                   <AvatarFallback>{member.full_name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
