@@ -3,56 +3,114 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar as CalendarIcon, Clock, MapPin, Video, Users, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// Sample meetings data
-const meetings = [
-  {
-    id: 1,
-    title: 'Réunion Générale',
-    date: '2024-01-20',
-    time: '18:00',
-    type: 'online',
-    link: 'https://meet.google.com/xxx',
-    description: 'Bilan mensuel et planification des prochaines actions.',
-    attendees: 45,
-  },
-  {
-    id: 2,
-    title: 'Comité Média',
-    date: '2024-01-22',
-    time: '14:00',
-    type: 'presence',
-    location: 'Salle B12, FST',
-    description: 'Préparation du contenu pour la caravane.',
-    attendees: 12,
-  },
-  {
-    id: 3,
-    title: 'Comité Événements',
-    date: '2024-01-25',
-    time: '16:00',
-    type: 'online',
-    link: 'https://meet.google.com/yyy',
-    description: 'Organisation de la prochaine action Bahja.',
-    attendees: 15,
-  },
-  {
-    id: 4,
-    title: 'Bureau Exécutif',
-    date: '2024-01-27',
-    time: '10:00',
-    type: 'presence',
-    location: 'Bureau du club',
-    description: 'Réunion stratégique du bureau.',
-    attendees: 4,
-  },
-];
+interface Meeting {
+  id: string;
+  title: string;
+  date: string;
+  type: 'online' | 'presential';
+  location: string | null;
+  description: string | null;
+  created_by: string | null;
+}
 
 export default function Meetings() {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
 
-  const upcomingMeetings = meetings.filter(m => new Date(m.date) >= new Date());
-  const pastMeetings = meetings.filter(m => new Date(m.date) < new Date());
+  // Form state
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [type, setType] = useState<'online' | 'presential'>('online');
+  const [location, setLocation] = useState('');
+
+  const fetchMeetings = async () => {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .order('date', { ascending: true });
+
+    if (!error && data) {
+      setMeetings(data);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchMeetings();
+  }, []);
+
+  const handleCreate = async () => {
+    if (!title || !date || !time) {
+      toast({ title: 'Erreur', description: 'Veuillez remplir tous les champs obligatoires.', variant: 'destructive' });
+      return;
+    }
+
+    setCreating(true);
+    const dateTime = new Date(`${date}T${time}`).toISOString();
+
+    const { error } = await supabase.from('events').insert({
+      title,
+      description: description || null,
+      date: dateTime,
+      type,
+      location: type === 'presential' ? location : null,
+      created_by: user?.id,
+    });
+
+    if (error) {
+      toast({ title: 'Erreur', description: 'Impossible de créer la réunion.', variant: 'destructive' });
+    } else {
+      toast({ title: 'Succès', description: 'Réunion créée avec succès.' });
+      setDialogOpen(false);
+      resetForm();
+      fetchMeetings();
+    }
+    setCreating(false);
+  };
+
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setDate('');
+    setTime('');
+    setType('online');
+    setLocation('');
+  };
+
+  const now = new Date();
+  const upcomingMeetings = meetings.filter(m => new Date(m.date) >= now);
+  const pastMeetings = meetings.filter(m => new Date(m.date) < now);
 
   return (
     <div className="space-y-6">
@@ -61,70 +119,123 @@ export default function Meetings() {
           <h1 className="text-2xl font-bold">{t('dashboard.meetings')}</h1>
           <p className="text-muted-foreground">Calendrier des réunions du club</p>
         </div>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Nouvelle réunion
-        </Button>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nouvelle réunion
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Créer une réunion</DialogTitle>
+              <DialogDescription>Planifiez une nouvelle réunion pour le club.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Titre *</Label>
+                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Réunion Générale" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description de la réunion..." />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="date">Date *</Label>
+                  <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="time">Heure *</Label>
+                  <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={type} onValueChange={(v) => setType(v as 'online' | 'presential')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="online">En ligne</SelectItem>
+                    <SelectItem value="presential">Présentiel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {type === 'presential' && (
+                <div className="space-y-2">
+                  <Label htmlFor="location">Lieu</Label>
+                  <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ex: Salle B12, FST" />
+                </div>
+              )}
+              <Button onClick={handleCreate} disabled={creating} className="w-full">
+                {creating ? 'Création...' : 'Créer la réunion'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Upcoming Meetings */}
       <div>
         <h2 className="text-lg font-semibold mb-4">Réunions à venir</h2>
-        <div className="grid md:grid-cols-2 gap-4">
-          {upcomingMeetings.map((meeting) => (
-            <Card key={meeting.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{meeting.title}</CardTitle>
-                    <CardDescription>{meeting.description}</CardDescription>
+        {loading ? (
+          <div className="grid md:grid-cols-2 gap-4">
+            {[1, 2].map((i) => (
+              <Card key={i}>
+                <CardHeader><Skeleton className="h-6 w-48" /></CardHeader>
+                <CardContent><Skeleton className="h-20 w-full" /></CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : upcomingMeetings.length > 0 ? (
+          <div className="grid md:grid-cols-2 gap-4">
+            {upcomingMeetings.map((meeting) => (
+              <Card key={meeting.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-lg">{meeting.title}</CardTitle>
+                      <CardDescription>{meeting.description}</CardDescription>
+                    </div>
+                    <Badge variant={meeting.type === 'online' ? 'default' : 'secondary'}>
+                      {meeting.type === 'online' ? (
+                        <><Video className="h-3 w-3 me-1" /> En ligne</>
+                      ) : (
+                        <><MapPin className="h-3 w-3 me-1" /> Présentiel</>
+                      )}
+                    </Badge>
                   </div>
-                  <Badge variant={meeting.type === 'online' ? 'default' : 'secondary'}>
-                    {meeting.type === 'online' ? (
-                      <><Video className="h-3 w-3 me-1" /> En ligne</>
-                    ) : (
-                      <><MapPin className="h-3 w-3 me-1" /> Présentiel</>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <CalendarIcon className="h-4 w-4" />
+                        {new Date(meeting.date).toLocaleDateString('fr-FR', {
+                          weekday: 'long',
+                          day: 'numeric',
+                          month: 'long'
+                        })}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        {new Date(meeting.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    {meeting.type === 'presential' && meeting.location && (
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <MapPin className="h-4 w-4" /> {meeting.location}
+                      </div>
                     )}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <CalendarIcon className="h-4 w-4" />
-                      {new Date(meeting.date).toLocaleDateString('fr-FR', {
-                        weekday: 'long',
-                        day: 'numeric',
-                        month: 'long'
-                      })}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      {meeting.time}
-                    </span>
                   </div>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    {meeting.type === 'online' ? (
-                      <><Video className="h-4 w-4" /> {meeting.link}</>
-                    ) : (
-                      <><MapPin className="h-4 w-4" /> {meeting.location}</>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-border">
-                    <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Users className="h-4 w-4" />
-                      {meeting.attendees} participants attendus
-                    </span>
-                    <Button size="sm" variant="outline">
-                      Voir détails
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <p className="text-muted-foreground">Aucune réunion à venir.</p>
+        )}
       </div>
 
       {/* Past Meetings */}
@@ -147,11 +258,10 @@ export default function Meetings() {
                       <div>
                         <p className="font-medium">{meeting.title}</p>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(meeting.date).toLocaleDateString('fr-FR')} à {meeting.time}
+                          {new Date(meeting.date).toLocaleDateString('fr-FR')} à {new Date(meeting.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                     </div>
-                    <Badge variant="outline">{meeting.attendees} participants</Badge>
                   </div>
                 </CardContent>
               </Card>
