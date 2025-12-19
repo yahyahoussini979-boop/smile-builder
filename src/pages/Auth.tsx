@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,43 +11,134 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import logo from '@/assets/logo.png';
+import { z } from 'zod';
+
+const emailSchema = z.string().email('Email invalide');
+const passwordSchema = z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères');
 
 export default function Auth() {
   const { t } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { signIn, signUp, user, isLoading: authLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Form state
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupFirstname, setSignupFirstname] = useState('');
+  const [signupLastname, setSignupLastname] = useState('');
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user && !authLoading) {
+      navigate('/dashboard');
+    }
+  }, [user, authLoading, navigate]);
+
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    // Validate
+    try {
+      emailSchema.parse(loginEmail);
+      passwordSchema.parse(loginPassword);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast({
+          title: 'Erreur de validation',
+          description: err.errors[0].message,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setIsLoading(true);
     
-    // TODO: Implement actual login with Supabase
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const { error } = await signIn(loginEmail, loginPassword);
     
-    toast({
-      title: 'Fonctionnalité à venir',
-      description: 'L\'authentification sera bientôt disponible.',
-    });
+    if (error) {
+      let message = 'Une erreur est survenue';
+      if (error.message.includes('Invalid login credentials')) {
+        message = 'Email ou mot de passe incorrect';
+      } else if (error.message.includes('Email not confirmed')) {
+        message = 'Veuillez confirmer votre email';
+      }
+      toast({
+        title: 'Erreur de connexion',
+        description: message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Bienvenue!',
+        description: 'Connexion réussie',
+      });
+      navigate('/dashboard');
+    }
     
     setIsLoading(false);
   };
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    // Validate
+    try {
+      emailSchema.parse(signupEmail);
+      passwordSchema.parse(signupPassword);
+      if (!signupFirstname.trim() || !signupLastname.trim()) {
+        throw new Error('Nom et prénom requis');
+      }
+    } catch (err) {
+      const message = err instanceof z.ZodError 
+        ? err.errors[0].message 
+        : (err as Error).message;
+      toast({
+        title: 'Erreur de validation',
+        description: message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
     
-    // TODO: Implement actual signup with Supabase
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const fullName = `${signupFirstname.trim()} ${signupLastname.trim()}`;
+    const { error } = await signUp(signupEmail, signupPassword, fullName);
     
-    toast({
-      title: 'Fonctionnalité à venir',
-      description: 'L\'inscription sera bientôt disponible.',
-    });
+    if (error) {
+      let message = 'Une erreur est survenue';
+      if (error.message.includes('already registered')) {
+        message = 'Cet email est déjà utilisé';
+      }
+      toast({
+        title: 'Erreur d\'inscription',
+        description: message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Inscription réussie!',
+        description: 'Bienvenue dans le club!',
+      });
+      navigate('/dashboard');
+    }
     
     setIsLoading(false);
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-muted">
@@ -86,6 +178,8 @@ export default function Auth() {
                       id="login-email"
                       type="email"
                       placeholder="votre@email.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
                       required
                     />
                   </div>
@@ -96,6 +190,8 @@ export default function Auth() {
                         id="login-password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="••••••••"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
                         required
                       />
                       <button
@@ -118,11 +214,23 @@ export default function Auth() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="signup-firstname">Prénom</Label>
-                      <Input id="signup-firstname" placeholder="Prénom" required />
+                      <Input
+                        id="signup-firstname"
+                        placeholder="Prénom"
+                        value={signupFirstname}
+                        onChange={(e) => setSignupFirstname(e.target.value)}
+                        required
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="signup-lastname">Nom</Label>
-                      <Input id="signup-lastname" placeholder="Nom" required />
+                      <Input
+                        id="signup-lastname"
+                        placeholder="Nom"
+                        value={signupLastname}
+                        onChange={(e) => setSignupLastname(e.target.value)}
+                        required
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -131,6 +239,8 @@ export default function Auth() {
                       id="signup-email"
                       type="email"
                       placeholder="votre@email.com"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
                       required
                     />
                   </div>
@@ -141,6 +251,8 @@ export default function Auth() {
                         id="signup-password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="••••••••"
+                        value={signupPassword}
+                        onChange={(e) => setSignupPassword(e.target.value)}
                         required
                         minLength={6}
                       />

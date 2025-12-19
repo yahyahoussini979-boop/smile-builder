@@ -1,47 +1,96 @@
+import { useState, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Edit, Mail, Calendar, Trophy, FileText, Lock, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { Edit, Mail, Calendar, FileText, Lock, History } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// Sample user profile
-const userProfile = {
-  name: 'Sara Amrani',
-  email: 'sara.amrani@example.com',
-  role: 'Respo Media',
-  committee: 'Media',
-  status: 'active',
-  joinDate: '2022-09-01',
-  totalPoints: 156,
-  tasksCompleted: 23,
-  avatar: '',
-};
-
-// Sample shared notes
-const sharedNotes = [
-  { id: 1, content: 'Disponible pour aider avec le montage vidéo cette semaine!', date: '2024-01-15' },
-  { id: 2, content: 'J\'ai des contacts chez Radio Plus pour l\'interview.', date: '2024-01-10' },
-];
-
-// Sample admin notes (visible only to user + admins)
-const adminNotes = [
-  { id: 1, content: 'Excellent travail sur la dernière campagne média! Continue comme ça.', author: 'Ahmed Benali', date: '2024-01-12' },
-];
+interface PointsLogEntry {
+  id: string;
+  task_description: string;
+  complexity_score: number;
+  date: string;
+  admin_comment: string | null;
+}
 
 export default function Profile() {
   const { t } = useLanguage();
-  const [newNote, setNewNote] = useState('');
+  const { user, profile, role } = useAuth();
+  const [pointsHistory, setPointsHistory] = useState<PointsLogEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      fetchPointsHistory();
+    }
+  }, [user]);
+
+  const fetchPointsHistory = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('points_log')
+        .select('id, task_description, complexity_score, date, admin_comment')
+        .eq('member_id', user.id)
+        .order('date', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      setPointsHistory(data || []);
+    } catch (error) {
+      console.error('Error fetching points history:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getInitials = () => {
+    if (profile?.full_name) {
+      return profile.full_name.split(' ').map(n => n[0]).join('').toUpperCase();
+    }
+    return user?.email?.[0].toUpperCase() || 'U';
+  };
+
+  const getRoleLabel = () => {
+    if (!role) return 'Membre';
+    const labels: Record<string, string> = {
+      bureau: 'Bureau',
+      admin: 'Admin',
+      respo: 'Responsable',
+      member: 'Membre',
+      embesa: 'Embesa',
+    };
+    return labels[role] || 'Membre';
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">{t('dashboard.profile')}</h1>
+          <p className="text-muted-foreground">Gérez votre profil et vos notes</p>
+        </div>
+        <div className="grid lg:grid-cols-3 gap-6">
+          <Skeleton className="h-96" />
+          <Skeleton className="h-96 lg:col-span-2" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">{t('dashboard.profile')}</h1>
-        <p className="text-muted-foreground">Gérez votre profil et vos notes</p>
+        <p className="text-muted-foreground">Gérez votre profil et consultez votre historique</p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -49,39 +98,39 @@ export default function Profile() {
         <Card className="lg:col-span-1">
           <CardHeader className="text-center">
             <Avatar className="h-24 w-24 mx-auto mb-4">
-              <AvatarImage src={userProfile.avatar} />
+              <AvatarImage src={profile?.avatar_url || undefined} />
               <AvatarFallback className="text-2xl">
-                {userProfile.name.split(' ').map(n => n[0]).join('')}
+                {getInitials()}
               </AvatarFallback>
             </Avatar>
-            <CardTitle>{userProfile.name}</CardTitle>
+            <CardTitle>{profile?.full_name || user?.email}</CardTitle>
             <CardDescription className="flex flex-col items-center gap-2">
-              <Badge>{userProfile.role}</Badge>
-              <span>{userProfile.committee}</span>
+              <Badge>{getRoleLabel()}</Badge>
+              {profile?.committee && <span>{profile.committee}</span>}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Mail className="h-4 w-4" />
-                {userProfile.email}
+                {user?.email}
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-4 w-4" />
-                Membre depuis {new Date(userProfile.joinDate).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                Membre depuis {user?.created_at ? new Date(user.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : 'N/A'}
               </div>
               <Separator />
               <div className="grid grid-cols-2 gap-4 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-primary">{userProfile.totalPoints}</p>
+                  <p className="text-2xl font-bold text-primary">{profile?.total_points || 0}</p>
                   <p className="text-xs text-muted-foreground">Points</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{userProfile.tasksCompleted}</p>
+                  <p className="text-2xl font-bold">{pointsHistory.length}</p>
                   <p className="text-xs text-muted-foreground">Tâches</p>
                 </div>
               </div>
-              <Button variant="outline" className="w-full gap-2">
+              <Button variant="outline" className="w-full gap-2" disabled>
                 <Edit className="h-4 w-4" />
                 Modifier le profil
               </Button>
@@ -89,81 +138,69 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-        {/* Notes Section */}
+        {/* History Section */}
         <div className="lg:col-span-2 space-y-6">
-          <Tabs defaultValue="shared">
+          <Tabs defaultValue="history">
             <TabsList>
-              <TabsTrigger value="shared" className="gap-2">
-                <FileText className="h-4 w-4" />
-                Notes partagées
+              <TabsTrigger value="history" className="gap-2">
+                <History className="h-4 w-4" />
+                Historique des points
               </TabsTrigger>
-              <TabsTrigger value="admin" className="gap-2">
-                <Lock className="h-4 w-4" />
-                Notes admin
+              <TabsTrigger value="notes" className="gap-2">
+                <FileText className="h-4 w-4" />
+                Notes
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="shared" className="space-y-4 mt-4">
-              {/* Add new note */}
-              <Card>
-                <CardContent className="pt-6">
-                  <Textarea
-                    placeholder="Ajoutez une note visible par tous les membres..."
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    rows={3}
-                  />
-                  <div className="flex justify-end mt-3">
-                    <Button disabled={!newNote.trim()} className="gap-2">
-                      <Plus className="h-4 w-4" />
-                      Publier
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Existing notes */}
-              {sharedNotes.map((note) => (
-                <Card key={note.id}>
-                  <CardContent className="py-4">
-                    <p className="text-foreground">{note.content}</p>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      {new Date(note.date).toLocaleDateString('fr-FR')}
-                    </p>
+            <TabsContent value="history" className="space-y-4 mt-4">
+              {pointsHistory.length === 0 ? (
+                <Card className="py-12">
+                  <CardContent className="text-center text-muted-foreground">
+                    Aucun point attribué pour le moment.
                   </CardContent>
                 </Card>
-              ))}
+              ) : (
+                <div className="space-y-3">
+                  {pointsHistory.map((entry) => (
+                    <Card key={entry.id}>
+                      <CardContent className="py-4 flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-lg">
+                          +{entry.complexity_score}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium">{entry.task_description}</p>
+                          {entry.admin_comment && (
+                            <p className="text-sm text-muted-foreground italic mt-1">
+                              "{entry.admin_comment}"
+                            </p>
+                          )}
+                          <p className="text-sm text-muted-foreground mt-2">
+                            {new Date(entry.date).toLocaleDateString('fr-FR', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric',
+                            })}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </TabsContent>
 
-            <TabsContent value="admin" className="space-y-4 mt-4">
+            <TabsContent value="notes" className="space-y-4 mt-4">
               <Card className="bg-muted/50 border-dashed">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Lock className="h-4 w-4" />
-                    Notes privées
+                    Notes & Communications
                   </CardTitle>
                   <CardDescription>
-                    Ces notes sont visibles uniquement par vous et les administrateurs.
+                    Fonctionnalité à venir - Les notes partagées et admin seront disponibles bientôt.
                   </CardDescription>
                 </CardHeader>
               </Card>
-
-              {adminNotes.map((note) => (
-                <Card key={note.id}>
-                  <CardContent className="py-4">
-                    <p className="text-foreground">{note.content}</p>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Par {note.author} • {new Date(note.date).toLocaleDateString('fr-FR')}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {adminNotes.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  Aucune note admin pour le moment.
-                </div>
-              )}
             </TabsContent>
           </Tabs>
         </div>
