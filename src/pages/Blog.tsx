@@ -88,42 +88,44 @@ export default function Blog() {
             <>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {posts.map((post) => (
-                  <Card key={post.id} className="group hover:shadow-lg transition-all duration-300 flex flex-col">
-                    {/* Image placeholder */}
-                    <div className="h-48 bg-muted rounded-t-lg overflow-hidden">
-                      {post.image_url ? (
-                        <img 
-                          src={post.image_url} 
-                          alt={post.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                          <span className="text-4xl">📰</span>
-                        </div>
-                      )}
-                    </div>
-                    <CardHeader className="flex-1">
-                      <CardTitle className="line-clamp-2 group-hover:text-primary transition-colors">
-                        {post.title}
-                      </CardTitle>
-                      <CardDescription className="line-clamp-3">
-                        {post.content}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardFooter className="flex items-center justify-between text-sm text-muted-foreground border-t pt-4">
-                      <div className="flex items-center gap-4">
-                        <span className="flex items-center gap-1">
-                          <User className="h-4 w-4" />
-                          {post.profiles?.full_name || 'Admin'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <CalendarDays className="h-4 w-4" />
-                          {new Date(post.created_at).toLocaleDateString('fr-FR')}
-                        </span>
+                  <Link key={post.id} to={`/blog/${post.id}`}>
+                    <Card className="group hover:shadow-lg transition-all duration-300 flex flex-col h-full cursor-pointer">
+                      {/* Image placeholder */}
+                      <div className="h-48 bg-muted rounded-t-lg overflow-hidden">
+                        {post.image_url ? (
+                          <img 
+                            src={post.image_url} 
+                            alt={post.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                            <span className="text-4xl">📰</span>
+                          </div>
+                        )}
                       </div>
-                    </CardFooter>
-                  </Card>
+                      <CardHeader className="flex-1">
+                        <CardTitle className="line-clamp-2 group-hover:text-primary transition-colors">
+                          {post.title}
+                        </CardTitle>
+                        <CardDescription className="line-clamp-3">
+                          {post.content}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardFooter className="flex items-center justify-between text-sm text-muted-foreground border-t pt-4">
+                        <div className="flex items-center gap-4">
+                          <span className="flex items-center gap-1">
+                            <User className="h-4 w-4" />
+                            {post.profiles?.full_name || 'Admin'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <CalendarDays className="h-4 w-4" />
+                            {new Date(post.created_at).toLocaleDateString('fr-FR')}
+                          </span>
+                        </div>
+                      </CardFooter>
+                    </Card>
+                  </Link>
                 ))}
               </div>
 
