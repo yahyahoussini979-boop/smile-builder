@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,46 +9,163 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Award, History, Plus } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// Sample members for selection
-const members = [
-  { id: '1', name: 'Sara Amrani', committee: 'Media' },
-  { id: '2', name: 'Karim Idrissi', committee: 'Event' },
-  { id: '3', name: 'Fatima Zohra', committee: 'Communication' },
-  { id: '4', name: 'Omar Benjelloun', committee: 'Technique' },
-  { id: '5', name: 'Nadia Bennani', committee: 'Media' },
-];
+interface Member {
+  id: string;
+  full_name: string;
+  committee: string | null;
+}
 
-// Sample points history
-const pointsHistory = [
-  { id: 1, member: 'Sara Amrani', task: 'Montage vidéo caravane', complexity: 5, date: '2024-01-15', comment: 'Excellent travail!' },
-  { id: 2, member: 'Karim Idrissi', task: 'Organisation logistique', complexity: 3, date: '2024-01-14', comment: '' },
-  { id: 3, member: 'Fatima Zohra', task: 'Publication réseaux sociaux', complexity: 2, date: '2024-01-13', comment: 'Bonne couverture' },
-];
+interface PointsEntry {
+  id: string;
+  member_id: string;
+  task_description: string;
+  complexity_score: number;
+  date: string;
+  admin_comment: string | null;
+  created_at: string;
+  profiles: {
+    full_name: string;
+  };
+}
 
 export default function AdminPoints() {
   const { t } = useLanguage();
   const { toast } = useToast();
+  const { user, hasElevatedRole } = useAuth();
   const [selectedMember, setSelectedMember] = useState('');
   const [task, setTask] = useState('');
   const [complexity, setComplexity] = useState('');
   const [comment, setComment] = useState('');
+  const [members, setMembers] = useState<Member[]>([]);
+  const [pointsHistory, setPointsHistory] = useState<PointsEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch active members
+      const { data: membersData, error: membersError } = await supabase
+        .from('profiles')
+        .select('id, full_name, committee')
+        .eq('status', 'active')
+        .order('full_name');
+
+      if (membersError) throw membersError;
+      setMembers(membersData || []);
+
+      // Fetch recent points history
+      const { data: historyData, error: historyError } = await supabase
+        .from('points_log')
+        .select(`
+          id,
+          member_id,
+          task_description,
+          complexity_score,
+          date,
+          admin_comment,
+          created_at,
+          profiles!points_log_member_id_fkey(full_name)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (historyError) throw historyError;
+      setPointsHistory(historyData as unknown as PointsEntry[] || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de charger les données',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // TODO: Save to database
-    toast({
-      title: 'Points attribués!',
-      description: `${complexity} points attribués avec succès.`,
-    });
+    if (!user || !hasElevatedRole) {
+      toast({
+        title: 'Accès refusé',
+        description: 'Vous n\'avez pas les droits pour cette action',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-    // Reset form
-    setSelectedMember('');
-    setTask('');
-    setComplexity('');
-    setComment('');
+    setIsSubmitting(true);
+    
+    try {
+      const { error } = await supabase.from('points_log').insert({
+        member_id: selectedMember,
+        task_description: task,
+        complexity_score: parseInt(complexity),
+        admin_comment: comment || null,
+        created_by: user.id,
+        date: new Date().toISOString().split('T')[0],
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Points attribués!',
+        description: `${complexity} points attribués avec succès.`,
+      });
+
+      // Reset form
+      setSelectedMember('');
+      setTask('');
+      setComplexity('');
+      setComment('');
+      
+      // Refresh history
+      fetchData();
+    } catch (error) {
+      console.error('Error adding points:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible d\'attribuer les points',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (!hasElevatedRole) {
+    return (
+      <Card className="py-12">
+        <CardContent className="text-center text-muted-foreground">
+          Vous n'avez pas accès à cette section.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">{t('dashboard.points')}</h1>
+          <p className="text-muted-foreground">Attribuez des points aux membres pour leurs tâches</p>
+        </div>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Skeleton className="h-96" />
+          <Skeleton className="h-96" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -79,7 +197,7 @@ export default function AdminPoints() {
                   <SelectContent>
                     {members.map((member) => (
                       <SelectItem key={member.id} value={member.id}>
-                        {member.name} ({member.committee})
+                        {member.full_name} {member.committee ? `(${member.committee})` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -125,9 +243,13 @@ export default function AdminPoints() {
                 />
               </div>
 
-              <Button type="submit" className="w-full gap-2" disabled={!selectedMember || !task || !complexity}>
+              <Button 
+                type="submit" 
+                className="w-full gap-2" 
+                disabled={!selectedMember || !task || !complexity || isSubmitting}
+              >
                 <Plus className="h-4 w-4" />
-                Attribuer les points
+                {isSubmitting ? 'Attribution...' : 'Attribuer les points'}
               </Button>
             </form>
           </CardContent>
@@ -145,25 +267,31 @@ export default function AdminPoints() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {pointsHistory.map((entry) => (
-                <div key={entry.id} className="flex items-start gap-3 pb-4 border-b border-border last:border-0 last:pb-0">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
-                    +{entry.complexity}
+            {pointsHistory.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                Aucune attribution de points pour le moment.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {pointsHistory.map((entry) => (
+                  <div key={entry.id} className="flex items-start gap-3 pb-4 border-b border-border last:border-0 last:pb-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                      +{entry.complexity_score}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium">{entry.profiles?.full_name || 'Membre'}</p>
+                      <p className="text-sm text-muted-foreground truncate">{entry.task_description}</p>
+                      {entry.admin_comment && (
+                        <p className="text-sm text-muted-foreground italic mt-1">"{entry.admin_comment}"</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(entry.date).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium">{entry.member}</p>
-                    <p className="text-sm text-muted-foreground truncate">{entry.task}</p>
-                    {entry.comment && (
-                      <p className="text-sm text-muted-foreground italic mt-1">"{entry.comment}"</p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(entry.date).toLocaleDateString('fr-FR')}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

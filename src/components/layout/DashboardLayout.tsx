@@ -1,5 +1,6 @@
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -41,6 +42,21 @@ import logo from '@/assets/logo.png';
 export function DashboardLayout() {
   const { t } = useLanguage();
   const location = useLocation();
+  const { user, profile, role, isLoading, hasElevatedRole, signOut } = useAuth();
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Redirect to auth if not logged in
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
 
   const menuItems = [
     { to: '/dashboard', icon: Home, label: t('dashboard.feed'), end: true },
@@ -58,6 +74,29 @@ export function DashboardLayout() {
   const isActive = (path: string, end?: boolean) => {
     if (end) return location.pathname === path;
     return location.pathname.startsWith(path);
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+  };
+
+  const getInitials = () => {
+    if (profile?.full_name) {
+      return profile.full_name.split(' ').map(n => n[0]).join('').toUpperCase();
+    }
+    return user?.email?.[0].toUpperCase() || 'U';
+  };
+
+  const getRoleLabel = () => {
+    if (!role) return 'Membre';
+    const labels: Record<string, string> = {
+      bureau: 'Bureau',
+      admin: 'Admin',
+      respo: 'Responsable',
+      member: 'Membre',
+      embesa: 'Embesa',
+    };
+    return labels[role] || 'Membre';
   };
 
   return (
@@ -93,27 +132,29 @@ export function DashboardLayout() {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            {/* Admin section - would be conditionally rendered based on role */}
-            <SidebarGroup>
-              <SidebarGroupLabel>Administration</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {adminItems.map((item) => (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive(item.to)}
-                      >
-                        <Link to={item.to}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            {/* Admin section - only visible to elevated roles */}
+            {hasElevatedRole && (
+              <SidebarGroup>
+                <SidebarGroupLabel>Administration</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {adminItems.map((item) => (
+                      <SidebarMenuItem key={item.to}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive(item.to)}
+                        >
+                          <Link to={item.to}>
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
           </SidebarContent>
 
           <SidebarFooter className="p-4 border-t border-sidebar-border">
@@ -121,11 +162,12 @@ export function DashboardLayout() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="w-full justify-start gap-2 h-auto p-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback>UA</AvatarFallback>
+                    <AvatarImage src={profile?.avatar_url || undefined} />
+                    <AvatarFallback>{getInitials()}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 text-start text-sm">
-                    <p className="font-medium">Utilisateur</p>
-                    <p className="text-xs text-muted-foreground">Membre</p>
+                    <p className="font-medium">{profile?.full_name || user?.email}</p>
+                    <p className="text-xs text-muted-foreground">{getRoleLabel()}</p>
                   </div>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </Button>
@@ -142,11 +184,9 @@ export function DashboardLayout() {
                   Paramètres
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="gap-2 text-destructive">
-                  <Link to="/">
-                    <LogOut className="h-4 w-4" />
-                    {t('dashboard.logout')}
-                  </Link>
+                <DropdownMenuItem onClick={handleLogout} className="gap-2 text-destructive">
+                  <LogOut className="h-4 w-4" />
+                  {t('dashboard.logout')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
