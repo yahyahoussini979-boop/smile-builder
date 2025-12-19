@@ -13,6 +13,7 @@ export function PublicNavbar() {
   const navLinks = [
     { to: '/', label: t('nav.home') },
     { to: '/about', label: t('nav.about') },
+    { to: '/team', label: 'Notre Équipe' },
     { to: '/blog', label: t('nav.blog') },
     { to: '/contact', label: t('nav.contact') },
   ];

@@ -13,6 +13,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 // Public Pages
 import Home from "@/pages/Home";
 import About from "@/pages/About";
+import Team from "@/pages/Team";
 import Contact from "@/pages/Contact";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
@@ -43,6 +44,7 @@ const App = () => (
               <Route element={<PublicLayout />}>
                 <Route path="/" element={<Home />} />
                 <Route path="/about" element={<About />} />
+                <Route path="/team" element={<Team />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/blog" element={<Blog />} />
                 <Route path="/blog/:id" element={<BlogPost />} />
