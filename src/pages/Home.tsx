@@ -27,10 +27,10 @@ export default function Home() {
   ];
 
   const stats = [
-    { icon: Users, value: '100+', label: 'Membres actifs' },
-    { icon: Heart, value: '50+', label: 'Actions humanitaires' },
-    { icon: Calendar, value: '10+', label: 'Années d\'expérience' },
-    { icon: Award, value: '5', label: 'Comités spécialisés' },
+    { icon: Users, value: '100+', label: t('stats.members') },
+    { icon: Heart, value: '50+', label: t('stats.actions') },
+    { icon: Calendar, value: '7+', label: t('stats.years') },
+    { icon: Award, value: '5', label: t('stats.committees') },
   ];
 
   return (
@@ -85,7 +85,7 @@ export default function Home() {
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">{t('activities.title')}</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Découvrez nos différentes initiatives pour créer un impact positif dans notre communauté.
+              {t('activities.subtitle')}
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
@@ -96,11 +96,11 @@ export default function Home() {
                     <activity.icon className="h-6 w-6" />
                   </div>
                   <CardTitle>{activity.title}</CardTitle>
-                  <CardDescription>{activity.description}</CardDescription>
+                  <CardDescription className="line-clamp-3">{activity.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Link to="/about" className="text-sm text-primary font-medium hover:underline inline-flex items-center gap-1">
-                    En savoir plus <ArrowRight className="h-4 w-4" />
+                    {t('activities.learnMore')} <ArrowRight className="h-4 w-4" />
                   </Link>
                 </CardContent>
               </Card>
@@ -112,9 +112,9 @@ export default function Home() {
       {/* CTA Section */}
       <section className="py-20 bg-muted">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Rejoignez notre mission</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">{t('cta.title')}</h2>
           <p className="text-muted-foreground max-w-2xl mx-auto mb-8">
-            Ensemble, nous pouvons créer un avenir meilleur. Devenez membre de Mohandiss Al Basma et contribuez au changement.
+            {t('cta.text')}
           </p>
           <Button asChild size="lg">
             <Link to="/auth">{t('hero.join')}</Link>

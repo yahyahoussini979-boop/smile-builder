@@ -22,24 +22,41 @@ const translations: Translations = {
   'hero.title': { fr: 'Mohandiss Al Basma', ar: 'مهندس البسمة' },
   'hero.subtitle': { fr: 'Tous pour un avenir étincelant', ar: 'الكل من أجل مستقبل مشرق' },
   'hero.cta': { fr: 'Découvrir nos actions', ar: 'اكتشف أعمالنا' },
-  'hero.join': { fr: 'Rejoindre le club', ar: 'انضم للنادي' },
+  'hero.join': { fr: 'Rejoindre la famille', ar: 'انضم للعائلة' },
   
   // About
   'about.title': { fr: 'À propos de nous', ar: 'من نحن' },
   'about.mission': { fr: 'Notre Mission', ar: 'مهمتنا' },
   'about.mission.text': { 
-    fr: 'Mohandiss Al Basma est un club humanitaire estudiantin basé à la FST Béni Mellal. Nous œuvrons pour créer des sourires et apporter de l\'espoir aux communautés dans le besoin.',
-    ar: 'مهندس البسمة هو نادي إنساني طلابي مقره في كلية العلوم والتقنيات ببني ملال. نعمل على خلق الابتسامات وجلب الأمل للمجتمعات المحتاجة.'
+    fr: 'Créé en septembre 2018 par des étudiants ingénieurs de la FST de Béni Mellal, Mohandiss Al Basma se distingue par des actions destinées aux personnes en situation défavorisée ou précaire. Nous œuvrons pour créer des sourires et apporter de l\'espoir aux communautés dans le besoin.',
+    ar: 'تأسس في سبتمبر 2018 من قبل طلاب مهندسين من كلية العلوم والتقنيات ببني ملال. مهندس البسمة يتميز بأعمال موجهة للأشخاص في وضعية صعبة أو هشة. نعمل على خلق الابتسامات وجلب الأمل للمجتمعات المحتاجة.'
+  },
+  'about.history': {
+    fr: 'Créé en septembre 2018 par des étudiants ingénieurs de la FST de Béni Mellal.',
+    ar: 'تأسس في سبتمبر 2018 من قبل طلاب مهندسين من كلية العلوم والتقنيات ببني ملال.'
   },
   
   // Activities
-  'activities.title': { fr: 'Nos Activités', ar: 'أنشطتنا' },
+  'activities.title': { fr: 'Nos Actions', ar: 'أعمالنا' },
+  'activities.subtitle': { fr: 'Découvrez nos différentes initiatives pour créer un impact positif dans notre communauté.', ar: 'اكتشف مبادراتنا المختلفة لخلق تأثير إيجابي في مجتمعنا.' },
   'activities.caravanes': { fr: 'Caravanes Al Bassma', ar: 'قوافل البسمة' },
-  'activities.caravanes.desc': { fr: 'Caravanes médicales et sociales', ar: 'قوافل طبية واجتماعية' },
+  'activities.caravanes.desc': { fr: 'Aide médicale et sociale dans les montagnes rurales. Nous apportons des soins de santé et du soutien aux communautés isolées.', ar: 'مساعدة طبية واجتماعية في المناطق الجبلية الريفية. نقدم الرعاية الصحية والدعم للمجتمعات المعزولة.' },
   'activities.bahja': { fr: 'Bahja Actions', ar: 'أعمال البهجة' },
-  'activities.bahja.desc': { fr: 'Visites aux orphelinats', ar: 'زيارات دور الأيتام' },
+  'activities.bahja.desc': { fr: 'Visites aux orphelinats et aux centres pour personnes âgées. Nous partageons des moments de joie et de bonheur avec ceux qui en ont besoin.', ar: 'زيارات دور الأيتام ومراكز كبار السن. نشارك لحظات الفرح والسعادة مع من يحتاجون إليها.' },
   'activities.forum': { fr: 'Forum du Savoir', ar: 'منتدى المعرفة' },
-  'activities.forum.desc': { fr: 'Ateliers techniques', ar: 'ورشات تقنية' },
+  'activities.forum.desc': { fr: 'Formations techniques et orientation pour les étudiants. Nous aidons les jeunes à développer leurs compétences et à planifier leur avenir.', ar: 'تدريبات تقنية وتوجيه للطلاب. نساعد الشباب على تطوير مهاراتهم والتخطيط لمستقبلهم.' },
+  'activities.learnMore': { fr: 'En savoir plus', ar: 'اقرأ المزيد' },
+  
+  // Values
+  'values.title': { fr: 'Nos Valeurs', ar: 'قيمنا' },
+  'values.partage': { fr: 'Partage', ar: 'المشاركة' },
+  'values.partage.desc': { fr: 'Nous croyons que le partage est la clé d\'une société plus juste et équitable.', ar: 'نؤمن أن المشاركة هي مفتاح مجتمع أكثر عدلاً وإنصافاً.' },
+  'values.devouement': { fr: 'Dévouement', ar: 'التفاني' },
+  'values.devouement.desc': { fr: 'Notre engagement total envers notre mission et les communautés que nous servons.', ar: 'التزامنا الكامل بمهمتنا والمجتمعات التي نخدمها.' },
+  'values.solidarite': { fr: 'Solidarité', ar: 'التضامن' },
+  'values.solidarite.desc': { fr: 'Ensemble, nous sommes plus forts pour accomplir notre mission humanitaire.', ar: 'معاً، نحن أقوى لإنجاز مهمتنا الإنسانية.' },
+  'values.altruisme': { fr: 'Altruisme', ar: 'الإيثار' },
+  'values.altruisme.desc': { fr: 'Nous plaçons le bien-être des autres au cœur de toutes nos actions.', ar: 'نضع رفاهية الآخرين في قلب جميع أعمالنا.' },
   
   // Contact
   'contact.title': { fr: 'Contactez-nous', ar: 'تواصل معنا' },
@@ -50,7 +67,12 @@ const translations: Translations = {
   
   // Footer
   'footer.rights': { fr: 'Tous droits réservés', ar: 'جميع الحقوق محفوظة' },
-  'footer.partners': { fr: 'Nos Partenaires', ar: 'شركاؤنا' },
+  'footer.partners': { fr: 'Ils nous font confiance', ar: 'يثقون بنا' },
+  'footer.links': { fr: 'Liens rapides', ar: 'روابط سريعة' },
+  
+  // CTA Section
+  'cta.title': { fr: 'Rejoignez notre mission', ar: 'انضم إلى مهمتنا' },
+  'cta.text': { fr: 'Ensemble, nous pouvons créer un avenir meilleur. Devenez membre de Mohandiss Al Basma et contribuez au changement.', ar: 'معاً، يمكننا خلق مستقبل أفضل. كن عضواً في مهندس البسمة وساهم في التغيير.' },
   
   // Dashboard
   'dashboard.feed': { fr: 'Fil d\'actualité', ar: 'آخر الأخبار' },
@@ -83,6 +105,12 @@ const translations: Translations = {
   'blog.readMore': { fr: 'Lire la suite', ar: 'اقرأ المزيد' },
   'blog.postedBy': { fr: 'Publié par', ar: 'نشر بواسطة' },
   'blog.on': { fr: 'le', ar: 'في' },
+  
+  // Stats
+  'stats.members': { fr: 'Membres actifs', ar: 'أعضاء نشطين' },
+  'stats.actions': { fr: 'Actions humanitaires', ar: 'أعمال إنسانية' },
+  'stats.years': { fr: 'Années d\'expérience', ar: 'سنوات من الخبرة' },
+  'stats.committees': { fr: 'Comités spécialisés', ar: 'لجان متخصصة' },
 };
 
 interface LanguageContextType {
