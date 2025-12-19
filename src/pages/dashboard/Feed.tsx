@@ -464,8 +464,18 @@ export default function Feed() {
           {/* Posts */}
           {posts.length === 0 ? (
             <Card className="py-12">
-              <CardContent className="text-center text-muted-foreground">
-                Aucune publication pour le moment.
+              <CardContent className="text-center space-y-4">
+                <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                  <Users className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div className="space-y-2">
+                  <p className="font-medium text-foreground">Rien à voir ici pour le moment!</p>
+                  <p className="text-sm text-muted-foreground">
+                    {!profile?.committee 
+                      ? "Vous n'êtes pas encore assigné à un comité. Attendez votre assignation pour voir les publications."
+                      : "Soyez le premier à publier quelque chose!"}
+                  </p>
+                </div>
               </CardContent>
             </Card>
           ) : (
