@@ -25,7 +25,7 @@ import Members from "@/pages/dashboard/Members";
 import Meetings from "@/pages/dashboard/Meetings";
 import Profile from "@/pages/dashboard/Profile";
 import AdminPoints from "@/pages/dashboard/AdminPoints";
-
+import AdminBlog from "@/pages/dashboard/AdminBlog";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -56,6 +56,7 @@ const App = () => (
                 <Route path="meetings" element={<Meetings />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="admin/points" element={<AdminPoints />} />
+                <Route path="admin/blog" element={<AdminBlog />} />
               </Route>
 
               {/* Catch-all */}
