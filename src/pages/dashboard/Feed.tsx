@@ -23,6 +23,20 @@ interface Post {
     avatar_url: string | null;
     committee: string | null;
   };
+  likes_count: number;
+  comments_count: number;
+  user_has_liked: boolean;
+}
+
+interface Comment {
+  id: string;
+  content: string;
+  created_at: string;
+  user_id: string;
+  profiles: {
+    full_name: string;
+    avatar_url: string | null;
+  };
 }
 
 interface TopMember {
@@ -57,12 +71,19 @@ export default function Feed() {
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPosting, setIsPosting] = useState(false);
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
+  const [comments, setComments] = useState<Record<string, Comment[]>>({});
+  const [newComments, setNewComments] = useState<Record<string, string>>({});
+  const [loadingComments, setLoadingComments] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetchData();
-  }, [filter, profile?.committee]);
+    if (user) {
+      fetchData();
+    }
+  }, [filter, profile?.committee, user]);
 
   const fetchData = async () => {
+    if (!user) return;
     setIsLoading(true);
     try {
       // Fetch posts based on filter
@@ -86,7 +107,26 @@ export default function Feed() {
 
       const { data: postsData, error: postsError } = await postsQuery;
       if (postsError) throw postsError;
-      setPosts(postsData as unknown as Post[] || []);
+
+      // Fetch likes and comments counts for each post
+      const postsWithCounts = await Promise.all(
+        (postsData || []).map(async (post) => {
+          const [likesResult, commentsResult, userLikeResult] = await Promise.all([
+            supabase.from('post_likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+            supabase.from('post_comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+            supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', user.id).maybeSingle(),
+          ]);
+          
+          return {
+            ...post,
+            likes_count: likesResult.count || 0,
+            comments_count: commentsResult.count || 0,
+            user_has_liked: !!userLikeResult.data,
+          };
+        })
+      );
+
+      setPosts(postsWithCounts as unknown as Post[]);
 
       // Fetch top members
       const { data: membersData, error: membersError } = await supabase
@@ -201,6 +241,112 @@ export default function Feed() {
       });
     } finally {
       setIsPosting(false);
+    }
+  };
+
+  const handleLike = async (postId: string, hasLiked: boolean) => {
+    if (!user) return;
+    
+    try {
+      if (hasLiked) {
+        await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', user.id);
+      } else {
+        await supabase.from('post_likes').insert({ post_id: postId, user_id: user.id });
+      }
+      
+      // Update local state
+      setPosts(prev => prev.map(post => 
+        post.id === postId 
+          ? { 
+              ...post, 
+              likes_count: hasLiked ? post.likes_count - 1 : post.likes_count + 1,
+              user_has_liked: !hasLiked 
+            }
+          : post
+      ));
+    } catch (error) {
+      console.error('Error toggling like:', error);
+    }
+  };
+
+  const toggleComments = async (postId: string) => {
+    const isExpanded = expandedComments.has(postId);
+    
+    if (isExpanded) {
+      setExpandedComments(prev => {
+        const next = new Set(prev);
+        next.delete(postId);
+        return next;
+      });
+    } else {
+      setExpandedComments(prev => new Set(prev).add(postId));
+      
+      if (!comments[postId]) {
+        setLoadingComments(prev => new Set(prev).add(postId));
+        try {
+          const { data, error } = await supabase
+            .from('post_comments')
+            .select(`
+              id,
+              content,
+              created_at,
+              user_id,
+              profiles!post_comments_user_id_fkey(full_name, avatar_url)
+            `)
+            .eq('post_id', postId)
+            .order('created_at', { ascending: true });
+
+          if (error) throw error;
+          setComments(prev => ({ ...prev, [postId]: data as unknown as Comment[] }));
+        } catch (error) {
+          console.error('Error fetching comments:', error);
+        } finally {
+          setLoadingComments(prev => {
+            const next = new Set(prev);
+            next.delete(postId);
+            return next;
+          });
+        }
+      }
+    }
+  };
+
+  const handleAddComment = async (postId: string) => {
+    const content = newComments[postId]?.trim();
+    if (!content || !user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('post_comments')
+        .insert({ post_id: postId, user_id: user.id, content })
+        .select(`
+          id,
+          content,
+          created_at,
+          user_id,
+          profiles!post_comments_user_id_fkey(full_name, avatar_url)
+        `)
+        .single();
+
+      if (error) throw error;
+
+      setComments(prev => ({
+        ...prev,
+        [postId]: [...(prev[postId] || []), data as unknown as Comment]
+      }));
+      setNewComments(prev => ({ ...prev, [postId]: '' }));
+      setPosts(prev => prev.map(post => 
+        post.id === postId 
+          ? { ...post, comments_count: post.comments_count + 1 }
+          : post
+      ));
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible d\'ajouter le commentaire',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -359,17 +505,86 @@ export default function Feed() {
                     />
                   )}
                 </CardContent>
-                <CardContent className="pt-0 pb-4">
+                <CardContent className="pt-0 pb-4 space-y-4">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <button className="flex items-center gap-1 hover:text-primary transition-colors">
-                      <Heart className="h-4 w-4" />
-                      0
+                    <button 
+                      onClick={() => handleLike(post.id, post.user_has_liked)}
+                      className={`flex items-center gap-1 transition-colors ${post.user_has_liked ? 'text-primary' : 'hover:text-primary'}`}
+                    >
+                      <Heart className={`h-4 w-4 ${post.user_has_liked ? 'fill-current' : ''}`} />
+                      {post.likes_count}
                     </button>
-                    <button className="flex items-center gap-1 hover:text-primary transition-colors">
+                    <button 
+                      onClick={() => toggleComments(post.id)}
+                      className={`flex items-center gap-1 transition-colors ${expandedComments.has(post.id) ? 'text-primary' : 'hover:text-primary'}`}
+                    >
                       <MessageCircle className="h-4 w-4" />
-                      0
+                      {post.comments_count}
                     </button>
                   </div>
+                  
+                  {/* Comments Section */}
+                  {expandedComments.has(post.id) && (
+                    <div className="border-t pt-4 space-y-3">
+                      {loadingComments.has(post.id) ? (
+                        <Skeleton className="h-16" />
+                      ) : (
+                        <>
+                          {(comments[post.id] || []).map((comment) => (
+                            <div key={comment.id} className="flex gap-2">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={comment.profiles?.avatar_url || undefined} />
+                                <AvatarFallback className="text-xs">
+                                  {comment.profiles?.full_name ? getInitials(comment.profiles.full_name) : 'U'}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 bg-muted rounded-lg px-3 py-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-sm">{comment.profiles?.full_name || 'Membre'}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(comment.created_at).toLocaleDateString('fr-FR', {
+                                      day: 'numeric',
+                                      month: 'short',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </span>
+                                </div>
+                                <p className="text-sm">{comment.content}</p>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {/* Add Comment */}
+                          <div className="flex gap-2">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={profile?.avatar_url || undefined} />
+                              <AvatarFallback className="text-xs">
+                                {profile?.full_name ? getInitials(profile.full_name) : 'U'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Écrire un commentaire..."
+                                value={newComments[post.id] || ''}
+                                onChange={(e) => setNewComments(prev => ({ ...prev, [post.id]: e.target.value }))}
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddComment(post.id)}
+                                className="flex-1 bg-muted rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+                              />
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleAddComment(post.id)}
+                                disabled={!newComments[post.id]?.trim()}
+                              >
+                                <Send className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))
