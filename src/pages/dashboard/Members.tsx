@@ -290,12 +290,12 @@ export default function Members() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="committee">Comité</Label>
-              <Select value={editCommittee} onValueChange={setEditCommittee}>
+              <Select value={editCommittee || 'none'} onValueChange={(v) => setEditCommittee(v === 'none' ? '' : v)}>
                 <SelectTrigger id="committee">
                   <SelectValue placeholder="Sélectionner un comité" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucun</SelectItem>
+                  <SelectItem value="none">Aucun</SelectItem>
                   {committeeOptions.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
