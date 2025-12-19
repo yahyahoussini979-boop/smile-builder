@@ -3,24 +3,65 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
+import { LanguageProvider } from "@/contexts/LanguageContext";
+
+// Layouts
+import { PublicLayout } from "@/components/layout/PublicLayout";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
+// Public Pages
+import Home from "@/pages/Home";
+import About from "@/pages/About";
+import Contact from "@/pages/Contact";
+import Blog from "@/pages/Blog";
+import Auth from "@/pages/Auth";
+import NotFound from "@/pages/NotFound";
+
+// Dashboard Pages
+import Feed from "@/pages/dashboard/Feed";
+import Leaderboard from "@/pages/dashboard/Leaderboard";
+import Members from "@/pages/dashboard/Members";
+import Meetings from "@/pages/dashboard/Meetings";
+import Profile from "@/pages/dashboard/Profile";
+import AdminPoints from "@/pages/dashboard/AdminPoints";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <LanguageProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Public Routes */}
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/blog" element={<Blog />} />
+            </Route>
+            
+            {/* Auth Route (standalone) */}
+            <Route path="/auth" element={<Auth />} />
+
+            {/* Dashboard Routes */}
+            <Route path="/dashboard" element={<DashboardLayout />}>
+              <Route index element={<Feed />} />
+              <Route path="leaderboard" element={<Leaderboard />} />
+              <Route path="members" element={<Members />} />
+              <Route path="meetings" element={<Meetings />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="admin/points" element={<AdminPoints />} />
+            </Route>
+
+            {/* Catch-all */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </LanguageProvider>
   </QueryClientProvider>
 );
 
