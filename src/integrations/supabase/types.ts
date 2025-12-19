@@ -14,16 +14,220 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date: string
+          description: string | null
+          id: string
+          location: string | null
+          title: string
+          type: Database["public"]["Enums"]["event_type"]
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date: string
+          description?: string | null
+          id?: string
+          location?: string | null
+          title: string
+          type?: Database["public"]["Enums"]["event_type"]
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description?: string | null
+          id?: string
+          location?: string | null
+          title?: string
+          type?: Database["public"]["Enums"]["event_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      points_log: {
+        Row: {
+          admin_comment: string | null
+          complexity_score: number
+          created_at: string
+          created_by: string
+          date: string
+          id: string
+          member_id: string
+          task_description: string
+        }
+        Insert: {
+          admin_comment?: string | null
+          complexity_score: number
+          created_at?: string
+          created_by: string
+          date?: string
+          id?: string
+          member_id: string
+          task_description: string
+        }
+        Update: {
+          admin_comment?: string | null
+          complexity_score?: number
+          created_at?: string
+          created_by?: string
+          date?: string
+          id?: string
+          member_id?: string
+          task_description?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "points_log_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "points_log_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posts: {
+        Row: {
+          author_id: string
+          committee_tag: Database["public"]["Enums"]["committee_type"] | null
+          content: string
+          created_at: string
+          id: string
+          image_url: string | null
+          title: string
+          updated_at: string
+          visibility: Database["public"]["Enums"]["post_visibility"]
+        }
+        Insert: {
+          author_id: string
+          committee_tag?: Database["public"]["Enums"]["committee_type"] | null
+          content: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          title: string
+          updated_at?: string
+          visibility?: Database["public"]["Enums"]["post_visibility"]
+        }
+        Update: {
+          author_id?: string
+          committee_tag?: Database["public"]["Enums"]["committee_type"] | null
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          title?: string
+          updated_at?: string
+          visibility?: Database["public"]["Enums"]["post_visibility"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          committee: Database["public"]["Enums"]["committee_type"] | null
+          created_at: string
+          full_name: string
+          id: string
+          status: Database["public"]["Enums"]["user_status"]
+          total_points: number
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          committee?: Database["public"]["Enums"]["committee_type"] | null
+          created_at?: string
+          full_name: string
+          id: string
+          status?: Database["public"]["Enums"]["user_status"]
+          total_points?: number
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          committee?: Database["public"]["Enums"]["committee_type"] | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          status?: Database["public"]["Enums"]["user_status"]
+          total_points?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_committee: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["committee_type"]
+      }
+      has_elevated_role: { Args: { _user_id: string }; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "bureau" | "admin" | "respo" | "member" | "embesa"
+      committee_type:
+        | "Sponsoring"
+        | "Communication"
+        | "Event"
+        | "Technique"
+        | "Media"
+        | "Bureau"
+      event_type: "online" | "presential"
+      post_visibility: "public" | "internal_all" | "committee_only"
+      user_status: "active" | "embesa" | "banned"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +354,19 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["bureau", "admin", "respo", "member", "embesa"],
+      committee_type: [
+        "Sponsoring",
+        "Communication",
+        "Event",
+        "Technique",
+        "Media",
+        "Bureau",
+      ],
+      event_type: ["online", "presential"],
+      post_visibility: ["public", "internal_all", "committee_only"],
+      user_status: ["active", "embesa", "banned"],
+    },
   },
 } as const
