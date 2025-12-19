@@ -4,7 +4,13 @@ import logo from '@/assets/logo.png';
 export function Footer() {
   const { t } = useLanguage();
 
-  const partners = ['AMFEC', 'Géoparc M\'Goun', 'FST Béni Mellal'];
+  const partners = [
+    'AMFEC',
+    'Géoparc M\'Goun',
+    'FST Béni Mellal',
+    'AIESEC',
+    'Rotaract'
+  ];
 
   return (
     <footer className="bg-primary text-primary-foreground">
@@ -13,12 +19,12 @@ export function Footer() {
           {/* Logo & Slogan */}
           <div className="flex flex-col items-start gap-4">
             <img src={logo} alt="Mohandiss Al Basma" className="h-12 w-auto brightness-0 invert" />
-            <p className="text-sm opacity-90">Tous pour un avenir étincelant</p>
+            <p className="text-sm opacity-90">{t('hero.subtitle')}</p>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-semibold mb-4">Links</h4>
+            <h4 className="font-semibold mb-4">{t('footer.links')}</h4>
             <ul className="space-y-2 text-sm opacity-90">
               <li><a href="/" className="hover:opacity-100 transition-opacity">{t('nav.home')}</a></li>
               <li><a href="/about" className="hover:opacity-100 transition-opacity">{t('nav.about')}</a></li>

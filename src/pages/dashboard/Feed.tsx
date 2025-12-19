@@ -42,7 +42,10 @@ interface Event {
 export default function Feed() {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const { user, profile, hasElevatedRole } = useAuth();
+  const { user, profile, hasElevatedRole, role } = useAuth();
+  
+  // Embesa users should not be able to add posts
+  const canAddPost = hasElevatedRole && role !== 'embesa';
   const [newPost, setNewPost] = useState('');
   const [filter, setFilter] = useState<'all' | 'committee'>('all');
   const [posts, setPosts] = useState<Post[]>([]);
@@ -109,7 +112,7 @@ export default function Feed() {
   };
 
   const handlePost = async () => {
-    if (!newPost.trim() || !user || !hasElevatedRole) return;
+    if (!newPost.trim() || !user || !canAddPost) return;
 
     setIsPosting(true);
     try {
@@ -186,8 +189,8 @@ export default function Feed() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Main Feed */}
         <div className="lg:col-span-2 space-y-6">
-          {/* New Post (only for elevated roles) */}
-          {hasElevatedRole && (
+          {/* New Post (only for elevated roles, excluding embesa) */}
+          {canAddPost && (
             <Card>
               <CardContent className="pt-6">
                 <div className="flex gap-4">

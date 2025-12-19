@@ -1,38 +1,38 @@
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Target, Heart, Award } from 'lucide-react';
+import { Users, Target, Heart, HandHeart, Share2, Sparkles } from 'lucide-react';
 
 export default function About() {
   const { t } = useLanguage();
 
   const committees = [
-    { name: t('committee.sponsoring'), color: 'bg-blue-500' },
-    { name: t('committee.communication'), color: 'bg-purple-500' },
-    { name: t('committee.event'), color: 'bg-orange-500' },
-    { name: t('committee.technique'), color: 'bg-cyan-500' },
-    { name: t('committee.media'), color: 'bg-pink-500' },
+    { name: t('committee.sponsoring'), color: 'bg-primary' },
+    { name: t('committee.communication'), color: 'bg-primary' },
+    { name: t('committee.event'), color: 'bg-primary' },
+    { name: t('committee.technique'), color: 'bg-primary' },
+    { name: t('committee.media'), color: 'bg-primary' },
   ];
 
   const values = [
     {
+      icon: Share2,
+      title: t('values.partage'),
+      description: t('values.partage.desc'),
+    },
+    {
       icon: Heart,
-      title: 'Solidarité',
-      description: 'Nous croyons en l\'entraide et la compassion envers les plus démunis.',
+      title: t('values.devouement'),
+      description: t('values.devouement.desc'),
     },
     {
       icon: Users,
-      title: 'Travail d\'équipe',
-      description: 'Ensemble, nous sommes plus forts pour accomplir notre mission.',
+      title: t('values.solidarite'),
+      description: t('values.solidarite.desc'),
     },
     {
-      icon: Target,
-      title: 'Excellence',
-      description: 'Nous visons toujours l\'excellence dans toutes nos actions.',
-    },
-    {
-      icon: Award,
-      title: 'Engagement',
-      description: 'Notre engagement envers la communauté est notre plus grande fierté.',
+      icon: HandHeart,
+      title: t('values.altruisme'),
+      description: t('values.altruisme.desc'),
     },
   ];
 
@@ -43,7 +43,7 @@ export default function About() {
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">{t('about.title')}</h1>
           <p className="text-xl opacity-90 max-w-2xl mx-auto">
-            Découvrez qui nous sommes et notre engagement pour un avenir meilleur.
+            {t('about.history')}
           </p>
         </div>
       </section>
@@ -63,7 +63,7 @@ export default function About() {
       {/* Values */}
       <section className="py-20 bg-muted">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">Nos Valeurs</h2>
+          <h2 className="text-3xl font-bold text-center mb-12">{t('values.title')}</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {values.map((value, index) => (
               <Card key={index} className="text-center">
