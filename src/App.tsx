@@ -23,6 +23,7 @@ import NotFound from "@/pages/NotFound";
 import Feed from "@/pages/dashboard/Feed";
 import Leaderboard from "@/pages/dashboard/Leaderboard";
 import Members from "@/pages/dashboard/Members";
+import MemberProfile from "@/pages/dashboard/MemberProfile";
 import Meetings from "@/pages/dashboard/Meetings";
 import Profile from "@/pages/dashboard/Profile";
 import AdminPoints from "@/pages/dashboard/AdminPoints";
@@ -55,6 +56,7 @@ const App = () => (
                 <Route index element={<Feed />} />
                 <Route path="leaderboard" element={<Leaderboard />} />
                 <Route path="members" element={<Members />} />
+                <Route path="members/:id" element={<MemberProfile />} />
                 <Route path="meetings" element={<Meetings />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="admin/points" element={<AdminPoints />} />

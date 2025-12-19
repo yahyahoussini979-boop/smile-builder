@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Search, Edit, Users, X, AlertTriangle } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -41,6 +42,7 @@ const roleOptions = ['member', 'respo', 'admin', 'bureau', 'embesa'];
 export default function Members() {
   const { t } = useLanguage();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { hasElevatedRole, role: userRole } = useAuth();
   const [search, setSearch] = useState('');
   const [committeeFilter, setCommitteeFilter] = useState('Tous');
@@ -390,7 +392,8 @@ export default function Members() {
         {filteredMembers.map((member) => (
           <Card 
             key={member.id} 
-            className={`${member.status === 'embesa' ? 'opacity-75' : ''} ${selectedIds.has(member.id) ? 'ring-2 ring-primary' : ''}`}
+            className={`cursor-pointer transition-shadow hover:shadow-md ${member.status === 'embesa' ? 'opacity-75' : ''} ${selectedIds.has(member.id) ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => navigate(`/dashboard/members/${member.id}`)}
           >
             <CardHeader className="pb-3">
               <div className="flex items-start gap-3">
@@ -398,6 +401,7 @@ export default function Members() {
                   <Checkbox
                     checked={selectedIds.has(member.id)}
                     onCheckedChange={() => toggleSelect(member.id)}
+                    onClick={(e) => e.stopPropagation()}
                     className="mt-1"
                   />
                 )}
@@ -421,7 +425,10 @@ export default function Members() {
                     variant="ghost" 
                     size="icon" 
                     className="h-8 w-8"
-                    onClick={() => openEditDialog(member)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openEditDialog(member);
+                    }}
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
