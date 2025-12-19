@@ -1,43 +1,189 @@
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Mail, Phone } from 'lucide-react';
-import { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Search, Mail, Edit } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// Sample members data
-const membersData = [
-  { id: 1, name: 'Ahmed Benali', role: 'Président', committee: 'Bureau', status: 'active', email: 'ahmed@example.com', points: 0 },
-  { id: 2, name: 'Laila Mansouri', role: 'Vice-Présidente', committee: 'Bureau', status: 'active', email: 'laila@example.com', points: 0 },
-  { id: 3, name: 'Sara Amrani', role: 'Respo Media', committee: 'Media', status: 'active', email: 'sara@example.com', points: 156 },
-  { id: 4, name: 'Karim Idrissi', role: 'Respo Event', committee: 'Event', status: 'active', email: 'karim@example.com', points: 142 },
-  { id: 5, name: 'Fatima Zohra', role: 'Respo Communication', committee: 'Communication', status: 'active', email: 'fatima@example.com', points: 128 },
-  { id: 6, name: 'Omar Benjelloun', role: 'Respo Technique', committee: 'Technique', status: 'active', email: 'omar@example.com', points: 115 },
-  { id: 7, name: 'Nadia Bennani', role: 'Membre', committee: 'Media', status: 'active', email: 'nadia@example.com', points: 87 },
-  { id: 8, name: 'Hassan Tazi', role: 'Membre', committee: 'Technique', status: 'active', email: 'hassan@example.com', points: 81 },
-  { id: 9, name: 'Mounir Alami', role: 'Ancien membre', committee: 'Event', status: 'embesa', email: 'mounir@example.com', points: 200 },
-];
+interface Member {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  committee: string | null;
+  status: 'active' | 'embesa' | 'banned';
+  total_points: number;
+  created_at: string;
+}
+
+interface MemberWithRole extends Member {
+  role?: string;
+  email?: string;
+}
 
 const committees = ['Tous', 'Bureau', 'Media', 'Event', 'Communication', 'Technique', 'Sponsoring'];
 const statuses = ['Tous', 'Actif', 'Embesa'];
+const committeeOptions = ['Sponsoring', 'Communication', 'Event', 'Technique', 'Media', 'Bureau'];
+const roleOptions = ['member', 'respo', 'admin', 'bureau', 'embesa'];
 
 export default function Members() {
   const { t } = useLanguage();
+  const { toast } = useToast();
+  const { hasElevatedRole, role: userRole } = useAuth();
   const [search, setSearch] = useState('');
   const [committeeFilter, setCommitteeFilter] = useState('Tous');
   const [statusFilter, setStatusFilter] = useState('Tous');
+  const [members, setMembers] = useState<MemberWithRole[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<MemberWithRole | null>(null);
+  const [editCommittee, setEditCommittee] = useState<string>('');
+  const [editRole, setEditRole] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const filteredMembers = membersData.filter((member) => {
-    const matchesSearch = member.name.toLowerCase().includes(search.toLowerCase()) ||
-                          member.email.toLowerCase().includes(search.toLowerCase());
+  const canEdit = userRole === 'bureau' || userRole === 'admin';
+
+  useEffect(() => {
+    fetchMembers();
+  }, []);
+
+  const fetchMembers = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch profiles
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('full_name');
+
+      if (profilesError) throw profilesError;
+
+      // Fetch roles for all users (if we have permission)
+      let rolesMap: Record<string, string> = {};
+      if (hasElevatedRole) {
+        const { data: rolesData } = await supabase
+          .from('user_roles')
+          .select('user_id, role');
+        
+        if (rolesData) {
+          rolesMap = rolesData.reduce((acc, r) => ({ ...acc, [r.user_id]: r.role }), {});
+        }
+      }
+
+      const membersWithRoles = (profilesData || []).map(p => ({
+        ...p,
+        role: rolesMap[p.id] || 'member',
+      })) as MemberWithRole[];
+
+      setMembers(membersWithRoles);
+    } catch (error) {
+      console.error('Error fetching members:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de charger les membres',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredMembers = members.filter((member) => {
+    const matchesSearch = member.full_name.toLowerCase().includes(search.toLowerCase());
     const matchesCommittee = committeeFilter === 'Tous' || member.committee === committeeFilter;
     const matchesStatus = statusFilter === 'Tous' || 
                           (statusFilter === 'Actif' && member.status === 'active') ||
                           (statusFilter === 'Embesa' && member.status === 'embesa');
     return matchesSearch && matchesCommittee && matchesStatus;
   });
+
+  const openEditDialog = (member: MemberWithRole) => {
+    setEditingMember(member);
+    setEditCommittee(member.committee || '');
+    setEditRole(member.role || 'member');
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMember) return;
+
+    setIsSaving(true);
+    try {
+      // Update profile (committee)
+      const committeeValue = editCommittee === '' ? null : editCommittee as 'Sponsoring' | 'Communication' | 'Event' | 'Technique' | 'Media' | 'Bureau';
+      
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ 
+          committee: committeeValue,
+        })
+        .eq('id', editingMember.id);
+
+      if (profileError) throw profileError;
+
+      // Update role
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .update({ role: editRole as 'bureau' | 'admin' | 'respo' | 'member' | 'embesa' })
+        .eq('user_id', editingMember.id);
+
+      if (roleError) throw roleError;
+
+      toast({
+        title: 'Mis à jour!',
+        description: 'Le profil a été mis à jour avec succès.',
+      });
+
+      setEditDialogOpen(false);
+      fetchMembers();
+    } catch (error) {
+      console.error('Error updating member:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de mettre à jour le profil',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    const labels: Record<string, string> = {
+      bureau: 'Bureau',
+      admin: 'Admin',
+      respo: 'Responsable',
+      member: 'Membre',
+      embesa: 'Embesa',
+    };
+    return labels[role] || 'Membre';
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">{t('dashboard.members')}</h1>
+          <p className="text-muted-foreground">Annuaire des membres du club</p>
+        </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-40" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -86,31 +232,38 @@ export default function Members() {
             <CardHeader className="pb-3">
               <div className="flex items-start gap-3">
                 <Avatar className="h-12 w-12">
-                  <AvatarFallback>{member.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                  <AvatarImage src={member.avatar_url || undefined} />
+                  <AvatarFallback>{member.full_name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-base truncate">{member.name}</CardTitle>
+                  <CardTitle className="text-base truncate">{member.full_name}</CardTitle>
                   <CardDescription className="flex items-center gap-2 flex-wrap mt-1">
                     <Badge variant={member.status === 'embesa' ? 'outline' : 'secondary'} className="text-xs">
-                      {member.role}
+                      {getRoleLabel(member.role || 'member')}
                     </Badge>
                     {member.status === 'embesa' && (
                       <Badge variant="outline" className="text-xs bg-muted">Embesa</Badge>
                     )}
                   </CardDescription>
                 </div>
+                {canEdit && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8"
+                    onClick={() => openEditDialog(member)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="h-4 w-4" />
-                  <span className="truncate">{member.email}</span>
-                </div>
                 <div className="flex items-center justify-between">
-                  <Badge variant="outline">{member.committee}</Badge>
-                  {member.points > 0 && (
-                    <span className="text-sm font-medium text-primary">{member.points} pts</span>
+                  <Badge variant="outline">{member.committee || 'Non assigné'}</Badge>
+                  {member.total_points > 0 && (
+                    <span className="text-sm font-medium text-primary">{member.total_points} pts</span>
                   )}
                 </div>
               </div>
@@ -124,6 +277,55 @@ export default function Members() {
           <p className="text-muted-foreground">Aucun membre trouvé</p>
         </div>
       )}
+
+      {/* Edit Member Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier le membre</DialogTitle>
+            <DialogDescription>
+              Modifier le comité et le rôle de {editingMember?.full_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="committee">Comité</Label>
+              <Select value={editCommittee} onValueChange={setEditCommittee}>
+                <SelectTrigger id="committee">
+                  <SelectValue placeholder="Sélectionner un comité" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Aucun</SelectItem>
+                  {committeeOptions.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="role">Rôle</Label>
+              <Select value={editRole} onValueChange={setEditRole}>
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Sélectionner un rôle" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roleOptions.map((r) => (
+                    <SelectItem key={r} value={r}>{getRoleLabel(r)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={isSaving}>
+              {isSaving ? 'Enregistrement...' : 'Enregistrer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
