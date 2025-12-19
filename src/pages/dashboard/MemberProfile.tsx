@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Calendar, Trophy, FileText, Heart, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 type CommitteeType = 'Sponsoring' | 'Communication' | 'Event' | 'Technique' | 'Media' | 'Bureau';
 
@@ -40,11 +41,13 @@ interface PostEntry {
   created_at: string;
   likes_count: number;
   comments_count: number;
+  user_has_liked: boolean;
 }
 
 export default function MemberProfile() {
   const { id } = useParams<{ id: string }>();
   const { t } = useLanguage();
+  const { toast } = useToast();
   const { user } = useAuth();
   const [member, setMember] = useState<MemberData | null>(null);
   const [points, setPoints] = useState<PointsEntry[]>([]);
@@ -109,17 +112,19 @@ export default function MemberProfile() {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      // Get likes and comments count for each post
+      // Get likes, comments count, and user like status for each post
       const postsWithCounts = await Promise.all(
         (postsData || []).map(async (post) => {
-          const [likesResult, commentsResult] = await Promise.all([
+          const [likesResult, commentsResult, userLikeResult] = await Promise.all([
             supabase.from('post_likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
             supabase.from('post_comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+            user ? supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
           ]);
           return {
             ...post,
             likes_count: likesResult.count || 0,
             comments_count: commentsResult.count || 0,
+            user_has_liked: !!userLikeResult.data,
           };
         })
       );
@@ -145,6 +150,36 @@ export default function MemberProfile() {
       embesa: 'Embesa',
     };
     return labels[role] || 'Membre';
+  };
+
+  const handleLike = async (postId: string, hasLiked: boolean) => {
+    if (!user) return;
+    
+    try {
+      if (hasLiked) {
+        await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', user.id);
+      } else {
+        await supabase.from('post_likes').insert({ post_id: postId, user_id: user.id });
+      }
+      
+      // Update local state
+      setPosts(prev => prev.map(post => 
+        post.id === postId 
+          ? { 
+              ...post, 
+              likes_count: hasLiked ? post.likes_count - 1 : post.likes_count + 1,
+              user_has_liked: !hasLiked 
+            }
+          : post
+      ));
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de réagir au post',
+        variant: 'destructive',
+      });
+    }
   };
 
   if (isLoading) {
@@ -294,11 +329,16 @@ export default function MemberProfile() {
                               year: 'numeric',
                             })}
                           </span>
-                          <div className="flex items-center gap-4">
-                            <span className="flex items-center gap-1">
-                              <Heart className="h-4 w-4" />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`gap-1 ${post.user_has_liked ? 'text-destructive' : ''}`}
+                              onClick={() => handleLike(post.id, post.user_has_liked)}
+                            >
+                              <Heart className={`h-4 w-4 ${post.user_has_liked ? 'fill-current' : ''}`} />
                               {post.likes_count}
-                            </span>
+                            </Button>
                             <span className="flex items-center gap-1">
                               <MessageCircle className="h-4 w-4" />
                               {post.comments_count}
