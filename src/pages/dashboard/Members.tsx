@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, Edit, Users, X } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Search, Edit, Users, X, AlertTriangle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -288,12 +289,25 @@ export default function Members() {
     );
   }
 
+  const unassignedMembers = members.filter(m => m.committees.length === 0);
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">{t('dashboard.members')}</h1>
         <p className="text-muted-foreground">Annuaire des membres du club</p>
       </div>
+
+      {/* Unassigned Members Alert */}
+      {canEdit && unassignedMembers.length > 0 && (
+        <Alert variant="default" className="border-warning bg-warning/10">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <AlertTitle className="text-warning">Membres non assignés</AlertTitle>
+          <AlertDescription>
+            {unassignedMembers.length} membre(s) n'ont pas encore de comité assigné. Utilisez le bouton d'édition pour les assigner.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Bulk Action Bar */}
       {canEdit && selectedIds.size > 0 && (
@@ -422,7 +436,10 @@ export default function Members() {
                       <Badge key={c} variant="outline">{c}</Badge>
                     ))
                   ) : (
-                    <Badge variant="outline">Non assigné</Badge>
+                    <Badge variant="destructive" className="gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Needs Assignment
+                    </Badge>
                   )}
                   {member.total_points > 0 && (
                     <span className="text-sm font-medium text-primary">{member.total_points} pts</span>
