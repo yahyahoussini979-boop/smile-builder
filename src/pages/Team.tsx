@@ -1,11 +1,26 @@
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface TeamMember {
   id: string;
   name: string;
   role: string;
   imageUrl: string;
+}
+
+interface MemberProfile {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  committee: string | null;
+  status: string;
+  total_points: number;
 }
 
 const teamMembers: TeamMember[] = [
@@ -78,8 +93,60 @@ function TeamMemberCard({ member }: { member: TeamMember }) {
   );
 }
 
+function MemberCard({ member }: { member: MemberProfile }) {
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  return (
+    <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+      <CardContent className="p-4 flex flex-col items-center text-center">
+        <Avatar className="h-24 w-24 border-4 border-primary mb-3">
+          <AvatarImage src={member.avatar_url || undefined} alt={member.full_name} />
+          <AvatarFallback className="text-lg bg-primary/10 text-primary">
+            {getInitials(member.full_name)}
+          </AvatarFallback>
+        </Avatar>
+        <h3 className="font-semibold text-foreground">{member.full_name}</h3>
+        {member.committee && (
+          <Badge variant="secondary" className="mt-2">
+            {member.committee}
+          </Badge>
+        )}
+        <p className="text-sm text-muted-foreground mt-1">
+          {member.total_points} points
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Team() {
   const { t } = useLanguage();
+  const [members, setMembers] = useState<MemberProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMembers = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('status', 'active')
+        .order('total_points', { ascending: false });
+
+      if (!error && data) {
+        setMembers(data);
+      }
+      setLoading(false);
+    };
+
+    fetchMembers();
+  }, []);
 
   // Split members for the layout
   const president = teamMembers[0];
@@ -141,6 +208,40 @@ export default function Team() {
               <TeamMemberCard member={bottomRow[0]} />
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Members Section */}
+      <section className="py-16 bg-muted/30">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-foreground mb-4">Nos Membres</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Tous les membres actifs de notre club qui contribuent chaque jour à nos actions.
+            </p>
+          </div>
+
+          {loading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <Card key={i} className="overflow-hidden">
+                  <CardContent className="p-4 flex flex-col items-center">
+                    <Skeleton className="h-24 w-24 rounded-full mb-3" />
+                    <Skeleton className="h-4 w-24 mb-2" />
+                    <Skeleton className="h-5 w-16" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : members.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {members.map((member) => (
+                <MemberCard key={member.id} member={member} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground">Aucun membre pour le moment.</p>
+          )}
         </div>
       </section>
 
