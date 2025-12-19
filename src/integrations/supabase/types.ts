@@ -55,6 +55,35 @@ export type Database = {
           },
         ]
       }
+      member_committees: {
+        Row: {
+          committee: Database["public"]["Enums"]["committee_type"]
+          created_at: string
+          id: string
+          member_id: string
+        }
+        Insert: {
+          committee: Database["public"]["Enums"]["committee_type"]
+          created_at?: string
+          id?: string
+          member_id: string
+        }
+        Update: {
+          committee?: Database["public"]["Enums"]["committee_type"]
+          created_at?: string
+          id?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_committees_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       points_log: {
         Row: {
           admin_comment: string | null

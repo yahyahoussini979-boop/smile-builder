@@ -15,11 +15,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
+type CommitteeType = 'Sponsoring' | 'Communication' | 'Event' | 'Technique' | 'Media' | 'Bureau';
+
 interface Member {
   id: string;
   full_name: string;
   avatar_url: string | null;
-  committee: string | null;
+  committees: CommitteeType[];
   status: 'active' | 'embesa' | 'banned';
   total_points: number;
   created_at: string;
@@ -48,7 +50,7 @@ export default function Members() {
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<MemberWithRole | null>(null);
-  const [editCommittee, setEditCommittee] = useState<string>('');
+  const [editCommittees, setEditCommittees] = useState<CommitteeType[]>([]);
   const [editRole, setEditRole] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -74,6 +76,22 @@ export default function Members() {
 
       if (profilesError) throw profilesError;
 
+      // Fetch member committees
+      const { data: committeesData, error: committeesError } = await supabase
+        .from('member_committees')
+        .select('member_id, committee');
+
+      if (committeesError) throw committeesError;
+
+      // Group committees by member
+      const committeesMap: Record<string, CommitteeType[]> = {};
+      (committeesData || []).forEach((mc) => {
+        if (!committeesMap[mc.member_id]) {
+          committeesMap[mc.member_id] = [];
+        }
+        committeesMap[mc.member_id].push(mc.committee as CommitteeType);
+      });
+
       // Fetch roles for all users (if we have permission)
       let rolesMap: Record<string, string> = {};
       if (hasElevatedRole) {
@@ -86,10 +104,16 @@ export default function Members() {
         }
       }
 
-      const membersWithRoles = (profilesData || []).map(p => ({
-        ...p,
+      const membersWithRoles: MemberWithRole[] = (profilesData || []).map(p => ({
+        id: p.id,
+        full_name: p.full_name,
+        avatar_url: p.avatar_url,
+        committees: committeesMap[p.id] || [],
+        status: p.status,
+        total_points: p.total_points,
+        created_at: p.created_at,
         role: rolesMap[p.id] || 'member',
-      })) as MemberWithRole[];
+      }));
 
       setMembers(membersWithRoles);
     } catch (error) {
@@ -106,7 +130,7 @@ export default function Members() {
 
   const filteredMembers = members.filter((member) => {
     const matchesSearch = member.full_name.toLowerCase().includes(search.toLowerCase());
-    const matchesCommittee = committeeFilter === 'Tous' || member.committee === committeeFilter;
+    const matchesCommittee = committeeFilter === 'Tous' || member.committees.includes(committeeFilter as CommitteeType);
     const matchesStatus = statusFilter === 'Tous' || 
                           (statusFilter === 'Actif' && member.status === 'active') ||
                           (statusFilter === 'Embesa' && member.status === 'embesa');
@@ -115,9 +139,17 @@ export default function Members() {
 
   const openEditDialog = (member: MemberWithRole) => {
     setEditingMember(member);
-    setEditCommittee(member.committee || '');
+    setEditCommittees(member.committees);
     setEditRole(member.role || 'member');
     setEditDialogOpen(true);
+  };
+
+  const toggleEditCommittee = (committee: CommitteeType) => {
+    setEditCommittees((prev) =>
+      prev.includes(committee)
+        ? prev.filter((c) => c !== committee)
+        : [...prev, committee]
+    );
   };
 
   // Bulk selection handlers
@@ -151,18 +183,19 @@ export default function Members() {
 
     setIsBulkSaving(true);
     try {
-      const committeeValue = bulkCommittee === 'none' ? null : bulkCommittee as 'Sponsoring' | 'Communication' | 'Event' | 'Technique' | 'Media' | 'Bureau';
+      const committeeValue = bulkCommittee as CommitteeType;
+      const memberIds = Array.from(selectedIds);
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ committee: committeeValue })
-        .in('id', Array.from(selectedIds));
-
-      if (error) throw error;
+      // Insert the committee for each selected member (ignoring duplicates with ON CONFLICT)
+      for (const memberId of memberIds) {
+        await supabase
+          .from('member_committees')
+          .upsert({ member_id: memberId, committee: committeeValue }, { onConflict: 'member_id,committee' });
+      }
 
       toast({
         title: 'Mis à jour!',
-        description: `${selectedIds.size} membre(s) assigné(s) au comité.`,
+        description: `${selectedIds.size} membre(s) assigné(s) au comité ${committeeValue}.`,
       });
 
       clearSelection();
@@ -184,17 +217,22 @@ export default function Members() {
 
     setIsSaving(true);
     try {
-      // Update profile (committee)
-      const committeeValue = editCommittee === '' ? null : editCommittee as 'Sponsoring' | 'Communication' | 'Event' | 'Technique' | 'Media' | 'Bureau';
-      
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ 
-          committee: committeeValue,
-        })
-        .eq('id', editingMember.id);
+      // Delete existing committees for this member
+      const { error: deleteError } = await supabase
+        .from('member_committees')
+        .delete()
+        .eq('member_id', editingMember.id);
 
-      if (profileError) throw profileError;
+      if (deleteError) throw deleteError;
+
+      // Insert new committees
+      if (editCommittees.length > 0) {
+        const { error: insertError } = await supabase
+          .from('member_committees')
+          .insert(editCommittees.map((c) => ({ member_id: editingMember.id, committee: c })));
+
+        if (insertError) throw insertError;
+      }
 
       // Update role
       const { error: roleError } = await supabase
@@ -378,8 +416,14 @@ export default function Members() {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <Badge variant="outline">{member.committee || 'Non assigné'}</Badge>
+                <div className="flex items-center justify-between flex-wrap gap-1">
+                  {member.committees.length > 0 ? (
+                    member.committees.map((c) => (
+                      <Badge key={c} variant="outline">{c}</Badge>
+                    ))
+                  ) : (
+                    <Badge variant="outline">Non assigné</Badge>
+                  )}
                   {member.total_points > 0 && (
                     <span className="text-sm font-medium text-primary">{member.total_points} pts</span>
                   )}
@@ -407,18 +451,19 @@ export default function Members() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="committee">Comité</Label>
-              <Select value={editCommittee || 'none'} onValueChange={(v) => setEditCommittee(v === 'none' ? '' : v)}>
-                <SelectTrigger id="committee">
-                  <SelectValue placeholder="Sélectionner un comité" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Aucun</SelectItem>
-                  {committeeOptions.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Comités</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {committeeOptions.map((c) => (
+                  <div key={c} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`edit-committee-${c}`}
+                      checked={editCommittees.includes(c as CommitteeType)}
+                      onCheckedChange={() => toggleEditCommittee(c as CommitteeType)}
+                    />
+                    <Label htmlFor={`edit-committee-${c}`} className="cursor-pointer">{c}</Label>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="role">Rôle</Label>
