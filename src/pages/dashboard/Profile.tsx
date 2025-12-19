@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,9 +7,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Edit, Mail, Calendar, FileText, Lock, History } from 'lucide-react';
+import { Camera, Mail, Calendar, FileText, Lock, History, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
 
 interface PointsLogEntry {
   id: string;
@@ -21,15 +22,25 @@ interface PointsLogEntry {
 
 export default function Profile() {
   const { t } = useLanguage();
+  const { toast } = useToast();
   const { user, profile, role } = useAuth();
   const [pointsHistory, setPointsHistory] = useState<PointsLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
       fetchPointsHistory();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (profile?.avatar_url) {
+      setAvatarUrl(profile.avatar_url);
+    }
+  }, [profile?.avatar_url]);
 
   const fetchPointsHistory = async () => {
     if (!user) return;
@@ -49,6 +60,67 @@ export default function Profile() {
       console.error('Error fetching points history:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'Fichier trop volumineux',
+        description: 'La taille maximale est de 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `avatar.${fileExt}`;
+      const filePath = `avatars/${user.id}/${fileName}`;
+
+      // Upload the file
+      const { error: uploadError } = await supabase.storage
+        .from('club_assets')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data } = supabase.storage
+        .from('club_assets')
+        .getPublicUrl(filePath);
+
+      const newAvatarUrl = `${data.publicUrl}?t=${Date.now()}`;
+
+      // Update profile with new avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: newAvatarUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setAvatarUrl(newAvatarUrl);
+      toast({
+        title: 'Photo mise à jour!',
+        description: 'Votre photo de profil a été changée.',
+      });
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de mettre à jour la photo',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -97,12 +169,33 @@ export default function Profile() {
         {/* Profile Card */}
         <Card className="lg:col-span-1">
           <CardHeader className="text-center">
-            <Avatar className="h-24 w-24 mx-auto mb-4">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="text-2xl">
-                {getInitials()}
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative inline-block mx-auto mb-4">
+              <Avatar className="h-24 w-24">
+                <AvatarImage src={avatarUrl || undefined} />
+                <AvatarFallback className="text-2xl">
+                  {getInitials()}
+                </AvatarFallback>
+              </Avatar>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={handleAvatarChange}
+                className="hidden"
+                id="avatar-upload"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="absolute bottom-0 right-0 p-2 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {isUploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             <CardTitle>{profile?.full_name || user?.email}</CardTitle>
             <CardDescription className="flex flex-col items-center gap-2">
               <Badge>{getRoleLabel()}</Badge>
@@ -130,10 +223,6 @@ export default function Profile() {
                   <p className="text-xs text-muted-foreground">Tâches</p>
                 </div>
               </div>
-              <Button variant="outline" className="w-full gap-2" disabled>
-                <Edit className="h-4 w-4" />
-                Modifier le profil
-              </Button>
             </div>
           </CardContent>
         </Card>

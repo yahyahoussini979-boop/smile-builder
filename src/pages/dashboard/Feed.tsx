@@ -6,8 +6,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Heart, MessageCircle, Send, Users, TrendingUp, Calendar } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Heart, MessageCircle, Send, Users, TrendingUp, Calendar, ImagePlus, X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 interface Post {
   id: string;
   content: string;
+  image_url: string | null;
   created_at: string;
   author_id: string;
   profiles: {
@@ -47,6 +48,9 @@ export default function Feed() {
   // Embesa users should not be able to add posts
   const canAddPost = hasElevatedRole && role !== 'embesa';
   const [newPost, setNewPost] = useState('');
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [filter, setFilter] = useState<'all' | 'committee'>('all');
   const [posts, setPosts] = useState<Post[]>([]);
   const [topMembers, setTopMembers] = useState<TopMember[]>([]);
@@ -67,6 +71,7 @@ export default function Feed() {
         .select(`
           id,
           content,
+          image_url,
           created_at,
           author_id,
           profiles!posts_author_id_fkey(full_name, avatar_url, committee)
@@ -111,16 +116,71 @@ export default function Feed() {
     }
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: 'Fichier trop volumineux',
+          description: 'La taille maximale est de 5MB',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+      setImagePreview(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `posts/${user!.id}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('club_assets')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage
+      .from('club_assets')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  };
+
   const handlePost = async () => {
     if (!newPost.trim() || !user || !canAddPost) return;
 
     setIsPosting(true);
     try {
+      let imageUrl: string | null = null;
+      
+      if (selectedImage) {
+        imageUrl = await uploadImage(selectedImage);
+      }
+
       const { error } = await supabase.from('posts').insert({
         title: 'Feed post',
         content: newPost.trim(),
         author_id: user.id,
         visibility: 'internal_all',
+        image_url: imageUrl,
       });
 
       if (error) throw error;
@@ -130,6 +190,7 @@ export default function Feed() {
         description: 'Votre message a été partagé.',
       });
       setNewPost('');
+      removeImage();
       fetchData();
     } catch (error) {
       console.error('Error posting:', error);
@@ -198,14 +259,51 @@ export default function Feed() {
                     <AvatarImage src={profile?.avatar_url || undefined} />
                     <AvatarFallback>{profile?.full_name ? getInitials(profile.full_name) : 'U'}</AvatarFallback>
                   </Avatar>
-                  <div className="flex-1">
+                  <div className="flex-1 space-y-3">
                     <Textarea
                       placeholder="Partagez une mise à jour avec le club..."
                       value={newPost}
                       onChange={(e) => setNewPost(e.target.value)}
                       rows={3}
                     />
-                    <div className="flex justify-end mt-3">
+                    
+                    {/* Image Preview */}
+                    {imagePreview && (
+                      <div className="relative inline-block">
+                        <img 
+                          src={imagePreview} 
+                          alt="Aperçu" 
+                          className="max-h-48 rounded-lg object-cover"
+                        />
+                        <button
+                          onClick={removeImage}
+                          className="absolute -top-2 -right-2 p-1 bg-destructive text-destructive-foreground rounded-full hover:bg-destructive/90"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          onChange={handleImageSelect}
+                          className="hidden"
+                          id="post-image"
+                        />
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <ImagePlus className="h-4 w-4 me-2" />
+                          Photo
+                        </Button>
+                      </div>
                       <Button onClick={handlePost} disabled={!newPost.trim() || isPosting}>
                         <Send className="h-4 w-4 me-2" />
                         {isPosting ? 'Publication...' : 'Publier'}
@@ -251,8 +349,15 @@ export default function Feed() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pb-3">
+                <CardContent className="pb-3 space-y-3">
                   <p className="text-foreground whitespace-pre-wrap">{post.content}</p>
+                  {post.image_url && (
+                    <img 
+                      src={post.image_url} 
+                      alt="Post image" 
+                      className="rounded-lg max-h-96 w-full object-cover"
+                    />
+                  )}
                 </CardContent>
                 <CardContent className="pt-0 pb-4">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
