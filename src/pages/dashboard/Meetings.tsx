@@ -2,7 +2,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar as CalendarIcon, Clock, MapPin, Video, Users, Plus } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, MapPin, Video, Plus, Lock, Globe } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,6 +26,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Constants } from '@/integrations/supabase/types';
+
+type CommitteeType = typeof Constants.public.Enums.committee_type[number];
 
 interface Meeting {
   id: string;
@@ -35,11 +38,21 @@ interface Meeting {
   location: string | null;
   description: string | null;
   created_by: string | null;
+  target_audience: CommitteeType | null;
 }
+
+const committeeLabels: Record<CommitteeType, string> = {
+  Sponsoring: 'Sponsoring',
+  Communication: 'Communication',
+  Event: 'Événementiel',
+  Technique: 'Technique',
+  Media: 'Média',
+  Bureau: 'Bureau',
+};
 
 export default function Meetings() {
   const { t } = useLanguage();
-  const { user } = useAuth();
+  const { user, profile, hasElevatedRole } = useAuth();
   const { toast } = useToast();
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +66,7 @@ export default function Meetings() {
   const [time, setTime] = useState('');
   const [type, setType] = useState<'online' | 'presential'>('online');
   const [location, setLocation] = useState('');
+  const [targetAudience, setTargetAudience] = useState<string>('all');
 
   const fetchMeetings = async () => {
     const { data, error } = await supabase
@@ -61,7 +75,7 @@ export default function Meetings() {
       .order('date', { ascending: true });
 
     if (!error && data) {
-      setMeetings(data);
+      setMeetings(data as Meeting[]);
     }
     setLoading(false);
   };
@@ -86,6 +100,7 @@ export default function Meetings() {
       type,
       location: type === 'presential' ? location : null,
       created_by: user?.id,
+      target_audience: targetAudience === 'all' ? null : targetAudience as CommitteeType,
     });
 
     if (error) {
@@ -106,11 +121,41 @@ export default function Meetings() {
     setTime('');
     setType('online');
     setLocation('');
+    setTargetAudience('all');
+  };
+
+  // Filter meetings based on user's committee or elevated role
+  const filterMeetingsForUser = (meetingsList: Meeting[]) => {
+    return meetingsList.filter((meeting) => {
+      // Public meetings (null target_audience) are visible to all
+      if (meeting.target_audience === null) return true;
+      // Elevated roles see everything
+      if (hasElevatedRole) return true;
+      // Users see meetings for their committee
+      if (profile?.committee === meeting.target_audience) return true;
+      return false;
+    });
   };
 
   const now = new Date();
-  const upcomingMeetings = meetings.filter(m => new Date(m.date) >= now);
-  const pastMeetings = meetings.filter(m => new Date(m.date) < now);
+  const filteredMeetings = filterMeetingsForUser(meetings);
+  const upcomingMeetings = filteredMeetings.filter(m => new Date(m.date) >= now);
+  const pastMeetings = filteredMeetings.filter(m => new Date(m.date) < now);
+
+  const getAudienceBadge = (targetAudience: CommitteeType | null) => {
+    if (targetAudience === null) {
+      return (
+        <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+          <Globe className="h-3 w-3 me-1" /> Public
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+        <Lock className="h-3 w-3 me-1" /> {committeeLabels[targetAudience]}
+      </Badge>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -119,61 +164,88 @@ export default function Meetings() {
           <h1 className="text-2xl font-bold">{t('dashboard.meetings')}</h1>
           <p className="text-muted-foreground">Calendrier des réunions du club</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Nouvelle réunion
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Créer une réunion</DialogTitle>
-              <DialogDescription>Planifiez une nouvelle réunion pour le club.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Titre *</Label>
-                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Réunion Générale" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description de la réunion..." />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="date">Date *</Label>
-                  <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="time">Heure *</Label>
-                  <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select value={type} onValueChange={(v) => setType(v as 'online' | 'presential')}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="online">En ligne</SelectItem>
-                    <SelectItem value="presential">Présentiel</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {type === 'presential' && (
-                <div className="space-y-2">
-                  <Label htmlFor="location">Lieu</Label>
-                  <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ex: Salle B12, FST" />
-                </div>
-              )}
-              <Button onClick={handleCreate} disabled={creating} className="w-full">
-                {creating ? 'Création...' : 'Créer la réunion'}
+        {hasElevatedRole && (
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                Nouvelle réunion
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Créer une réunion</DialogTitle>
+                <DialogDescription>Planifiez une nouvelle réunion pour le club.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Titre *</Label>
+                  <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Réunion Générale" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description de la réunion..." />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Date *</Label>
+                    <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="time">Heure *</Label>
+                    <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <Select value={type} onValueChange={(v) => setType(v as 'online' | 'presential')}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="online">En ligne</SelectItem>
+                      <SelectItem value="presential">Présentiel</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {type === 'presential' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Lieu</Label>
+                    <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ex: Salle B12, FST" />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                    Public cible
+                  </Label>
+                  <Select value={targetAudience} onValueChange={setTargetAudience}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        <span className="flex items-center gap-2">
+                          <Globe className="h-4 w-4" /> Tout le club
+                        </span>
+                      </SelectItem>
+                      {Constants.public.Enums.committee_type.map((committee) => (
+                        <SelectItem key={committee} value={committee}>
+                          <span className="flex items-center gap-2">
+                            <Lock className="h-4 w-4" /> {committeeLabels[committee]}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleCreate} disabled={creating} className="w-full">
+                  {creating ? 'Création...' : 'Créer la réunion'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Upcoming Meetings */}
@@ -193,18 +265,21 @@ export default function Meetings() {
             {upcomingMeetings.map((meeting) => (
               <Card key={meeting.id}>
                 <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
                       <CardTitle className="text-lg">{meeting.title}</CardTitle>
                       <CardDescription>{meeting.description}</CardDescription>
                     </div>
-                    <Badge variant={meeting.type === 'online' ? 'default' : 'secondary'}>
-                      {meeting.type === 'online' ? (
-                        <><Video className="h-3 w-3 me-1" /> En ligne</>
-                      ) : (
-                        <><MapPin className="h-3 w-3 me-1" /> Présentiel</>
-                      )}
-                    </Badge>
+                    <div className="flex flex-col gap-1 items-end">
+                      <Badge variant={meeting.type === 'online' ? 'default' : 'secondary'}>
+                        {meeting.type === 'online' ? (
+                          <><Video className="h-3 w-3 me-1" /> En ligne</>
+                        ) : (
+                          <><MapPin className="h-3 w-3 me-1" /> Présentiel</>
+                        )}
+                      </Badge>
+                      {getAudienceBadge(meeting.target_audience)}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -262,6 +337,7 @@ export default function Meetings() {
                         </p>
                       </div>
                     </div>
+                    {getAudienceBadge(meeting.target_audience)}
                   </div>
                 </CardContent>
               </Card>

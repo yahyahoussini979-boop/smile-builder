@@ -22,6 +22,7 @@ export type Database = {
           description: string | null
           id: string
           location: string | null
+          target_audience: Database["public"]["Enums"]["committee_type"] | null
           title: string
           type: Database["public"]["Enums"]["event_type"]
         }
@@ -32,6 +33,7 @@ export type Database = {
           description?: string | null
           id?: string
           location?: string | null
+          target_audience?: Database["public"]["Enums"]["committee_type"] | null
           title: string
           type?: Database["public"]["Enums"]["event_type"]
         }
@@ -42,6 +44,7 @@ export type Database = {
           description?: string | null
           id?: string
           location?: string | null
+          target_audience?: Database["public"]["Enums"]["committee_type"] | null
           title?: string
           type?: Database["public"]["Enums"]["event_type"]
         }

@@ -39,18 +39,20 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import logo from '@/assets/logo.png';
+import { useMeetingNotifications } from '@/hooks/useMeetingNotifications';
 
 function DashboardContent() {
   const { t } = useLanguage();
   const location = useLocation();
   const { user, profile, role, hasElevatedRole, signOut } = useAuth();
   const { setOpenMobile, isMobile } = useSidebar();
+  const { hasNewMeetings } = useMeetingNotifications();
 
   const menuItems = [
     { to: '/dashboard', icon: Home, label: t('dashboard.feed'), end: true },
     { to: '/dashboard/leaderboard', icon: Trophy, label: t('dashboard.leaderboard') },
     { to: '/dashboard/members', icon: Users, label: t('dashboard.members') },
-    { to: '/dashboard/meetings', icon: Calendar, label: t('dashboard.meetings') },
+    { to: '/dashboard/meetings', icon: Calendar, label: t('dashboard.meetings'), hasNotification: hasNewMeetings },
     { to: '/dashboard/profile', icon: User, label: t('dashboard.profile') },
   ];
 
@@ -114,9 +116,12 @@ function DashboardContent() {
                       asChild
                       isActive={isActive(item.to, item.end)}
                     >
-                      <Link to={item.to} onClick={handleNavClick}>
+                      <Link to={item.to} onClick={handleNavClick} className="relative">
                         <item.icon className="h-4 w-4" />
                         <span>{item.label}</span>
+                        {item.hasNotification && (
+                          <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-destructive" />
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
