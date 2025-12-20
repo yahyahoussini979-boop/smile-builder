@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar as CalendarIcon, Clock, MapPin, Video, Plus, Lock, Globe } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { MeetingRSVP } from '@/components/meetings/MeetingRSVP';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -283,7 +284,7 @@ export default function Meetings() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <CalendarIcon className="h-4 w-4" />
@@ -303,6 +304,9 @@ export default function Meetings() {
                         <MapPin className="h-4 w-4" /> {meeting.location}
                       </div>
                     )}
+                    <div className="pt-2 border-t border-border">
+                      <MeetingRSVP eventId={meeting.id} />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
