@@ -2,7 +2,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar as CalendarIcon, Clock, MapPin, Video, Plus, Lock, Globe } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, MapPin, Video, Plus, Lock, Globe, ExternalLink } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { MeetingRSVP } from '@/components/meetings/MeetingRSVP';
 import { supabase } from '@/integrations/supabase/client';
@@ -99,7 +99,7 @@ export default function Meetings() {
       description: description || null,
       date: dateTime,
       type,
-      location: type === 'presential' ? location : null,
+      location: type === 'presential' ? location : (type === 'online' ? location : null),
       created_by: user?.id,
       target_audience: targetAudience === 'all' ? null : targetAudience as CommitteeType,
     });
@@ -215,6 +215,18 @@ export default function Meetings() {
                     <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ex: Salle B12, FST" />
                   </div>
                 )}
+                {type === 'online' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="meeting-link">Lien de réunion</Label>
+                    <Input 
+                      id="meeting-link" 
+                      value={location} 
+                      onChange={(e) => setLocation(e.target.value)} 
+                      placeholder="Ex: https://meet.google.com/xxx-xxxx-xxx" 
+                      type="url"
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Lock className="h-4 w-4 text-muted-foreground" />
@@ -303,6 +315,17 @@ export default function Meetings() {
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <MapPin className="h-4 w-4" /> {meeting.location}
                       </div>
+                    )}
+                    {meeting.type === 'online' && meeting.location && (
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        className="w-full gap-2"
+                        onClick={() => window.open(meeting.location!, '_blank')}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Rejoindre la réunion
+                      </Button>
                     )}
                     <div className="pt-2 border-t border-border">
                       <MeetingRSVP eventId={meeting.id} />
