@@ -368,7 +368,11 @@ export type Database = {
         | "Media"
         | "Bureau"
       event_type: "online" | "presential"
-      post_visibility: "public" | "internal_all" | "committee_only"
+      post_visibility:
+        | "public"
+        | "internal_all"
+        | "committee_only"
+        | "admin_only"
       user_status: "active" | "embesa" | "banned" | "pending"
     }
     CompositeTypes: {
@@ -507,7 +511,12 @@ export const Constants = {
         "Bureau",
       ],
       event_type: ["online", "presential"],
-      post_visibility: ["public", "internal_all", "committee_only"],
+      post_visibility: [
+        "public",
+        "internal_all",
+        "committee_only",
+        "admin_only",
+      ],
       user_status: ["active", "embesa", "banned", "pending"],
     },
   },
