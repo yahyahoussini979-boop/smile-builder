@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Search, Edit, Users, X, AlertTriangle } from 'lucide-react';
+import { Search, Edit, Users, X, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,7 +24,7 @@ interface Member {
   full_name: string;
   avatar_url: string | null;
   committees: CommitteeType[];
-  status: 'active' | 'embesa' | 'banned';
+  status: 'active' | 'embesa' | 'banned' | 'pending';
   total_points: number;
   created_at: string;
 }
@@ -35,7 +35,7 @@ interface MemberWithRole extends Member {
 }
 
 const committees = ['Tous', 'Bureau', 'Media', 'Event', 'Communication', 'Technique', 'Sponsoring'];
-const statuses = ['Tous', 'Actif', 'Embesa'];
+const statuses = ['Tous', 'Actif', 'Embesa', 'En attente'];
 const committeeOptions = ['Sponsoring', 'Communication', 'Event', 'Technique', 'Media', 'Bureau'];
 const roleOptions = ['member', 'respo', 'admin', 'bureau', 'embesa'];
 
@@ -136,9 +136,36 @@ export default function Members() {
     const matchesCommittee = committeeFilter === 'Tous' || member.committees.includes(committeeFilter as CommitteeType);
     const matchesStatus = statusFilter === 'Tous' || 
                           (statusFilter === 'Actif' && member.status === 'active') ||
-                          (statusFilter === 'Embesa' && member.status === 'embesa');
+                          (statusFilter === 'Embesa' && member.status === 'embesa') ||
+                          (statusFilter === 'En attente' && member.status === 'pending');
     return matchesSearch && matchesCommittee && matchesStatus;
   });
+
+  const pendingMembers = members.filter(m => m.status === 'pending');
+
+  const handleApprove = async (memberId: string) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ status: 'active' })
+        .eq('id', memberId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Approuvé!',
+        description: 'Le membre a été approuvé avec succès.',
+      });
+      fetchMembers();
+    } catch (error) {
+      console.error('Error approving member:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible d\'approuver le membre',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const openEditDialog = (member: MemberWithRole) => {
     setEditingMember(member);
@@ -291,7 +318,7 @@ export default function Members() {
     );
   }
 
-  const unassignedMembers = members.filter(m => m.committees.length === 0);
+  const unassignedMembers = members.filter(m => m.committees.length === 0 && m.status !== 'pending');
 
   return (
     <div className="space-y-6">
@@ -299,6 +326,44 @@ export default function Members() {
         <h1 className="text-2xl font-bold">{t('dashboard.members')}</h1>
         <p className="text-muted-foreground">Annuaire des membres du club</p>
       </div>
+
+      {/* Pending Approvals Section */}
+      {canEdit && pendingMembers.length > 0 && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-amber-500" />
+              <CardTitle className="text-lg text-amber-600">Approbations en attente</CardTitle>
+              <Badge variant="secondary" className="bg-amber-500/20 text-amber-600">{pendingMembers.length}</Badge>
+            </div>
+            <CardDescription>Ces membres attendent votre approbation pour accéder au tableau de bord</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pendingMembers.map((member) => (
+                <div key={member.id} className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={member.avatar_url || undefined} />
+                      <AvatarFallback>{member.full_name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{member.full_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Inscrit le {new Date(member.created_at).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
+                  </div>
+                  <Button onClick={() => handleApprove(member.id)} size="sm" className="gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    Approuver
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Unassigned Members Alert */}
       {canEdit && unassignedMembers.length > 0 && (
@@ -417,6 +482,9 @@ export default function Members() {
                     </Badge>
                     {member.status === 'embesa' && (
                       <Badge variant="outline" className="text-xs bg-muted">Embesa</Badge>
+                    )}
+                    {member.status === 'pending' && (
+                      <Badge variant="outline" className="text-xs bg-amber-500/20 text-amber-600 border-amber-500/30">En attente</Badge>
                     )}
                   </CardDescription>
                 </div>
