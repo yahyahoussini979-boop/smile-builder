@@ -90,6 +90,7 @@ export default function Feed() {
     setIsLoading(true);
     try {
       // Fetch posts based on filter
+      // We need to properly filter: internal_all OR (committee_only AND matching committee)
       let postsQuery = supabase
         .from('posts')
         .select(`
@@ -98,22 +99,39 @@ export default function Feed() {
           image_url,
           created_at,
           author_id,
+          visibility,
+          committee_tag,
           profiles!posts_author_id_fkey(full_name, avatar_url, committee)
         `)
-        .in('visibility', ['internal_all', 'committee_only'])
         .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (filter === 'committee' && profile?.committee) {
-        postsQuery = postsQuery.eq('committee_tag', profile.committee);
-      }
+        .limit(50);
 
       const { data: postsData, error: postsError } = await postsQuery;
       if (postsError) throw postsError;
 
+      // Client-side filtering to properly handle OR logic
+      const filteredPosts = (postsData || []).filter(post => {
+        const visibility = post.visibility as string;
+        
+        // Internal all posts are visible to everyone
+        if (visibility === 'internal_all') return true;
+        
+        // Committee only posts are visible if user is in that committee or has elevated role
+        if (visibility === 'committee_only') {
+          return post.committee_tag === profile?.committee || hasElevatedRole;
+        }
+        
+        return false;
+      });
+
+      // Apply committee filter if active
+      const finalPosts = filter === 'committee' && profile?.committee
+        ? filteredPosts.filter(post => post.committee_tag === profile.committee)
+        : filteredPosts;
+
       // Fetch likes and comments counts for each post
       const postsWithCounts = await Promise.all(
-        (postsData || []).map(async (post) => {
+        finalPosts.slice(0, 20).map(async (post) => {
           const [likesResult, commentsResult, userLikeResult] = await Promise.all([
             supabase.from('post_likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
             supabase.from('post_comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
