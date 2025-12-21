@@ -6,7 +6,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Heart, MessageCircle, Send, Users, TrendingUp, Calendar, ImagePlus, X } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Heart, MessageCircle, Send, Users, TrendingUp, Calendar, ImagePlus, X, Trash2 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -61,6 +63,7 @@ export default function Feed() {
   
   // All members can post internally (except embesa and banned users)
   const canAddPost = user && role !== 'embesa' && profile?.status !== 'banned';
+  const [postVisibility, setPostVisibility] = useState<'internal_all' | 'committee_only'>('internal_all');
   const [newPost, setNewPost] = useState('');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -219,8 +222,9 @@ export default function Feed() {
         title: 'Feed post',
         content: newPost.trim(),
         author_id: user.id,
-        visibility: 'internal_all',
+        visibility: postVisibility,
         image_url: imageUrl,
+        committee_tag: postVisibility === 'committee_only' ? profile?.committee : null,
       });
 
       if (error) throw error;
@@ -230,6 +234,7 @@ export default function Feed() {
         description: 'Votre message a été partagé.',
       });
       setNewPost('');
+      setPostVisibility('internal_all');
       removeImage();
       fetchData();
     } catch (error) {
@@ -242,6 +247,67 @@ export default function Feed() {
     } finally {
       setIsPosting(false);
     }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette publication?')) return;
+
+    try {
+      const { error } = await supabase.from('posts').delete().eq('id', postId);
+      if (error) throw error;
+
+      toast({
+        title: 'Supprimé!',
+        description: 'La publication a été supprimée.',
+      });
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de supprimer la publication',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string, postId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce commentaire?')) return;
+
+    try {
+      const { error } = await supabase.from('post_comments').delete().eq('id', commentId);
+      if (error) throw error;
+
+      setComments(prev => ({
+        ...prev,
+        [postId]: (prev[postId] || []).filter(c => c.id !== commentId)
+      }));
+      setPosts(prev => prev.map(post => 
+        post.id === postId 
+          ? { ...post, comments_count: post.comments_count - 1 }
+          : post
+      ));
+
+      toast({
+        title: 'Supprimé!',
+        description: 'Le commentaire a été supprimé.',
+      });
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de supprimer le commentaire',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const canDeletePost = (authorId: string) => {
+    return user?.id === authorId || hasElevatedRole;
+  };
+
+  const canDeleteComment = (commentUserId: string) => {
+    return user?.id === commentUserId || hasElevatedRole;
   };
 
   const handleLike = async (postId: string, hasLiked: boolean) => {
@@ -430,6 +496,27 @@ export default function Feed() {
                       </div>
                     )}
                     
+                    {/* Visibility Selector */}
+                    {profile?.committee && (
+                      <div className="space-y-2">
+                        <Label className="text-sm text-muted-foreground">Qui peut voir cette publication?</Label>
+                        <RadioGroup
+                          value={postVisibility}
+                          onValueChange={(v) => setPostVisibility(v as 'internal_all' | 'committee_only')}
+                          className="flex gap-4"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="internal_all" id="all-members" />
+                            <Label htmlFor="all-members" className="cursor-pointer">Tous les membres</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="committee_only" id="committee-only" />
+                            <Label htmlFor="committee-only" className="cursor-pointer">Mon comité ({profile.committee})</Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between">
                       <div>
                         <input
@@ -503,6 +590,16 @@ export default function Feed() {
                         })}
                       </p>
                     </div>
+                    {canDeletePost(post.author_id) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDeletePost(post.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="pb-3 space-y-3">
@@ -541,7 +638,7 @@ export default function Feed() {
                       ) : (
                         <>
                           {(comments[post.id] || []).map((comment) => (
-                            <div key={comment.id} className="flex gap-2">
+                            <div key={comment.id} className="flex gap-2 group">
                               <Avatar className="h-8 w-8">
                                 <AvatarImage src={comment.profiles?.avatar_url || undefined} />
                                 <AvatarFallback className="text-xs">
@@ -559,6 +656,14 @@ export default function Feed() {
                                       minute: '2-digit'
                                     })}
                                   </span>
+                                  {canDeleteComment(comment.user_id) && (
+                                    <button
+                                      onClick={() => handleDeleteComment(comment.id, post.id)}
+                                      className="ms-auto opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  )}
                                 </div>
                                 <p className="text-sm">{comment.content}</p>
                               </div>

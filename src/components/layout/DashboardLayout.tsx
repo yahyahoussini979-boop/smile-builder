@@ -213,7 +213,7 @@ function DashboardContent() {
 }
 
 export function DashboardLayout() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isPending } = useAuth();
 
   // Loading state
   if (isLoading) {
@@ -227,6 +227,26 @@ export function DashboardLayout() {
   // Redirect to auth if not logged in
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Show pending approval message
+  if (isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="max-w-md w-full mx-4 text-center space-y-6">
+          <div className="w-16 h-16 mx-auto rounded-full bg-amber-500/10 flex items-center justify-center">
+            <Calendar className="h-8 w-8 text-amber-500" />
+          </div>
+          <h1 className="text-2xl font-bold">Compte en attente d'approbation</h1>
+          <p className="text-muted-foreground">
+            Votre compte a été créé avec succès, mais il doit être approuvé par un administrateur avant que vous puissiez accéder au tableau de bord.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Vous recevrez une notification dès que votre compte sera activé.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

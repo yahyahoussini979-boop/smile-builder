@@ -9,10 +9,12 @@ interface Profile {
   id: string;
   full_name: string;
   committee: Committee | null;
-  status: 'active' | 'embesa' | 'banned';
+  status: 'active' | 'embesa' | 'banned' | 'pending';
   avatar_url: string | null;
   total_points: number;
 }
+
+export type UserStatus = 'active' | 'embesa' | 'banned' | 'pending';
 
 interface AuthContextType {
   user: User | null;
@@ -20,6 +22,7 @@ interface AuthContextType {
   profile: Profile | null;
   role: AppRole | null;
   isLoading: boolean;
+  isPending: boolean;
   hasElevatedRole: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
@@ -36,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const hasElevatedRole = role === 'bureau' || role === 'admin' || role === 'respo';
+  const isPending = profile?.status === 'pending';
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -87,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: profileData.id,
           full_name: profileData.full_name,
           committee: profileData.committee as Committee | null,
-          status: profileData.status as 'active' | 'embesa' | 'banned',
+          status: profileData.status as UserStatus,
           avatar_url: profileData.avatar_url,
           total_points: profileData.total_points,
         });
@@ -151,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       role,
       isLoading,
+      isPending,
       hasElevatedRole,
       signIn,
       signUp,
