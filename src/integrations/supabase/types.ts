@@ -369,7 +369,7 @@ export type Database = {
         | "Bureau"
       event_type: "online" | "presential"
       post_visibility: "public" | "internal_all" | "committee_only"
-      user_status: "active" | "embesa" | "banned"
+      user_status: "active" | "embesa" | "banned" | "pending"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -508,7 +508,7 @@ export const Constants = {
       ],
       event_type: ["online", "presential"],
       post_visibility: ["public", "internal_all", "committee_only"],
-      user_status: ["active", "embesa", "banned"],
+      user_status: ["active", "embesa", "banned", "pending"],
     },
   },
 } as const
