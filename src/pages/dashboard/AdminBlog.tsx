@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, Trash2, Eye, ImagePlus, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, ImagePlus, X, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,7 +19,7 @@ interface Post {
   title: string;
   content: string;
   image_url: string | null;
-  visibility: 'public' | 'internal_all' | 'committee_only';
+  visibility: 'public' | 'internal_all' | 'committee_only' | 'admin_only';
   committee_tag: string | null;
   created_at: string;
   profiles: {
@@ -31,6 +31,7 @@ const visibilityOptions = [
   { value: 'public', label: 'Public (visible par tous)' },
   { value: 'internal_all', label: 'Interne (membres uniquement)' },
   { value: 'committee_only', label: 'Comité uniquement' },
+  { value: 'admin_only', label: 'Administration uniquement' },
 ];
 
 const committeeOptions = ['Sponsoring', 'Communication', 'Event', 'Technique', 'Media', 'Bureau'];
@@ -54,6 +55,10 @@ export default function AdminBlog() {
   const [committeeTag, setCommitteeTag] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [visibilityFilter, setVisibilityFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchPosts();
@@ -179,7 +184,7 @@ export default function AdminBlog() {
       const postData = {
         title: title.trim(),
         content: content.trim(),
-        visibility: visibility as 'public' | 'internal_all' | 'committee_only',
+        visibility: visibility as 'public' | 'internal_all' | 'committee_only' | 'admin_only',
         committee_tag: visibility === 'committee_only' && committeeTag ? committeeTag as 'Sponsoring' | 'Communication' | 'Event' | 'Technique' | 'Media' | 'Bureau' : null,
         image_url: imageUrl,
       };
@@ -262,10 +267,20 @@ export default function AdminBlog() {
         return <Badge variant="secondary">Interne</Badge>;
       case 'committee_only':
         return <Badge variant="outline">Comité</Badge>;
+      case 'admin_only':
+        return <Badge variant="destructive">Admin</Badge>;
       default:
         return null;
     }
   };
+
+  // Filter posts based on search and visibility
+  const filteredPosts = posts.filter((post) => {
+    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          post.content.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesVisibility = visibilityFilter === 'all' || post.visibility === visibilityFilter;
+    return matchesSearch && matchesVisibility;
+  });
 
   if (!hasElevatedRole) {
     return (
@@ -308,16 +323,42 @@ export default function AdminBlog() {
         </Button>
       </div>
 
+      {/* Search and Filter */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher un article..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="ps-9"
+          />
+        </div>
+        <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
+          <SelectTrigger className="w-full sm:w-[200px]">
+            <SelectValue placeholder="Filtrer par visibilité" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toutes les visibilités</SelectItem>
+            {visibilityOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Posts List */}
-      {posts.length === 0 ? (
+      {filteredPosts.length === 0 ? (
         <Card className="py-12">
           <CardContent className="text-center text-muted-foreground">
-            Aucun article pour le moment. Créez votre premier article!
+            {posts.length === 0 
+              ? "Aucun article pour le moment. Créez votre premier article!"
+              : "Aucun article ne correspond à votre recherche."}
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          {posts.map((post) => (
+          {filteredPosts.map((post) => (
             <Card key={post.id}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
